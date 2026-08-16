@@ -10,14 +10,8 @@ Minecraft **1.20.1 Forge** content mod that adds the **Static Resonance** origin
 
 Gameplay is **data-driven** (Apoli/Origins JSON + mcfunctions). Java is a thin shell so 3D VFX and radial UI can be added later without rewriting the origin.
 
-Design sources (also under `docs/`):
-
-- **ความสามารถที่มีจริงตอนนี้ (Static Resonance)**  
-  - EN (AI / dev source of truth) → `docs/AI_ABILITIES_CATALOG.md`  
-  - TH (สรุปสกิลอ่านง่าย) → `docs/AI_ABILITIES_CATALOG_TH.md`
-- Mode system, G/R philosophy → `docs/Static_Resonance.md`
-- Folder architecture → `docs/architecture.md`
-- VFX / AI rules → `docs/ai-knowledge-base.md` + `vfx-specs/`
+เอกสารอยู่ที่ [`docs/README.md`](docs/README.md) — เริ่มจากแคตตาล็อกสกิล ถ้าขัดกับเอกสารออกแบบให้เชื่อแคตตาล็อก  
+สเปกวงล้อและ VFX อยู่ที่ `vfx-specs/`
 
 ---
 

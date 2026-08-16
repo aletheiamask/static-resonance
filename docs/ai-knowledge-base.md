@@ -12,7 +12,7 @@ Effekseer https://github.com/effekseer/Effekseer
 | [`architecture.md`](./architecture.md) | Origins layering + this mod’s hybrid Java/datapack notes |
 | [`Static_Resonance.md`](./Static_Resonance.md) | Design philosophy (may include not-yet-built ideas) |
 
-**Last catalog sync:** 2026-08-09 · v2.1.0 — charge 0–100; radial select-only 4 modes; Faraday + Control; **no climb**.
+**Last catalog sync:** see [`AI_ABILITIES_CATALOG.md`](./AI_ABILITIES_CATALOG.md) (currently 2.2.0, 2026-08-16).
 
 # Purpose
 
