@@ -1,0 +1,27 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:arrow",
+    "minecraft:spectral_arrow",
+    "minecraft:trident",
+    "minecraft:snowball",
+    "minecraft:egg",
+    "minecraft:ender_pearl",
+    "minecraft:fireball",
+    "minecraft:small_fireball",
+    "minecraft:dragon_fireball",
+    "minecraft:wither_skull",
+    "minecraft:shulker_bullet",
+    "minecraft:llama_spit",
+    "minecraft:potion",
+    "minecraft:experience_bottle",
+    {
+      "id": "tacz:bullet",
+      "required": false
+    },
+    {
+      "id": "tacz:ammo",
+      "required": false
+    }
+  ]
+}

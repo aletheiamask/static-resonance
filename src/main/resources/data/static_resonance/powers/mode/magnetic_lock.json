@@ -1,0 +1,98 @@
+{
+  "type": "origins:active_self",
+  "key": {
+    "key": "key.origins.primary_active"
+  },
+  "cooldown": 30,
+  "hud_render": {
+    "should_render": false
+  },
+  "condition": {
+    "type": "origins:and",
+    "conditions": [
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/mode",
+        "comparison": "==",
+        "compare_to": 2
+      },
+      {
+        "type": "origins:or",
+        "conditions": [
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/field_active",
+            "comparison": "==",
+            "compare_to": 1
+          },
+          {
+            "type": "origins:and",
+            "conditions": [
+              {
+                "type": "origins:resource",
+                "resource": "static_resonance:systems/control_style",
+                "comparison": "==",
+                "compare_to": 0
+              },
+              {
+                "type": "origins:resource",
+                "resource": "static_resonance:systems/charge",
+                "comparison": ">=",
+                "compare_to": 15
+              }
+            ]
+          },
+          {
+            "type": "origins:and",
+            "conditions": [
+              {
+                "type": "origins:resource",
+                "resource": "static_resonance:systems/control_style",
+                "comparison": "==",
+                "compare_to": 1
+              },
+              {
+                "type": "origins:resource",
+                "resource": "static_resonance:systems/charge",
+                "comparison": ">=",
+                "compare_to": 40
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "entity_action": {
+    "type": "origins:if_else",
+    "condition": {
+      "type": "origins:resource",
+      "resource": "static_resonance:systems/control_style",
+      "comparison": "==",
+      "compare_to": 1
+    },
+    "if_action": {
+      "type": "origins:if_else",
+      "condition": {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/field_active",
+        "comparison": "==",
+        "compare_to": 1
+      },
+      "if_action": {
+        "type": "origins:execute_command",
+        "command": "sr_internal field_stop"
+      },
+      "else_action": {
+        "type": "origins:execute_command",
+        "command": "sr_internal field_start"
+      }
+    },
+    "else_action": {
+      "type": "origins:execute_command",
+      "command": "sr_internal lock_target"
+    }
+  },
+  "name": "Magnetic Lock",
+  "description": "Mode Control: lock any living entity in range (28 Charge on hit, spent in Java) or expanding field (40 Charge). Sub-wheel chooses style."
+}

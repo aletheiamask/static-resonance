@@ -1,0 +1,59 @@
+{
+  "type": "origins:action_over_time",
+  "interval": 5,
+  "condition": {
+    "type": "origins:and",
+    "conditions": [
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/scan_active",
+        "comparison": "==",
+        "compare_to": 1
+      },
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/mode",
+        "comparison": "==",
+        "compare_to": 1
+      },
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/scan_radius",
+        "comparison": ">=",
+        "compare_to": 0
+      },
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/scan_radius",
+        "comparison": "<=",
+        "compare_to": 7
+      },
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/charge",
+        "comparison": ">=",
+        "compare_to": 1
+      }
+    ]
+  },
+  "entity_action": {
+    "type": "origins:and",
+    "actions": [
+      {
+        "type": "origins:change_resource",
+        "resource": "static_resonance:systems/charge",
+        "change": -1
+      },
+      {
+        "type": "origins:change_resource",
+        "resource": "static_resonance:systems/scan_radius",
+        "change": 8
+      },
+      {
+        "type": "origins:execute_command",
+        "command": "function static_resonance:sense/scan_step"
+      }
+    ]
+  },
+  "hidden": true
+}

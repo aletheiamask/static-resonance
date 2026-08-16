@@ -1,0 +1,28 @@
+{
+  "powers": [
+    "static_resonance:systems/charge",
+    "static_resonance:systems/mode",
+    "static_resonance:systems/charge_tick",
+    "static_resonance:systems/scan_active",
+    "static_resonance:systems/scan_radius",
+    "static_resonance:systems/scan_abort",
+    "static_resonance:systems/motion_charge",
+    "static_resonance:systems/control_style",
+    "static_resonance:systems/dust_style",
+    "static_resonance:systems/scan_filter",
+    "static_resonance:systems/field_active",
+    "static_resonance:systems/faraday_emergency",
+    "static_resonance:systems/faraday_tick",
+    "static_resonance:passive/faraday_emergency",
+    "static_resonance:passive/charged_stability",
+    "static_resonance:passive/static_footing",
+    "static_resonance:weakness/water_vulnerability"
+  ],
+  "icon": {
+    "item": "minecraft:lightning_rod"
+  },
+  "order": 8,
+  "impact": 2,
+  "name": "Static Resonance",
+  "description": "You shape electrostatic vibration through five modes. Hold R for the skill wheel (tap R to cycle). Left-click selects a mode; F casts. Faraday Cage is Aegis. Charge is 0–100. By Pipothai."
+}

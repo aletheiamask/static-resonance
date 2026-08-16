@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+build/
+out/
+mcmodsrepo/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+eclipse/
+bin/
+run/
+run-data/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated
+src/generated/
+
+# Local inspect / decompiled Apoli stubs / play dumps
+io/
+tmp-celine-inspect/
+nokrit-watch-summary.txt
+_lr.png

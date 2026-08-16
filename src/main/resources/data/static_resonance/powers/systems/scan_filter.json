@@ -1,0 +1,12 @@
+{
+  "type": "origins:resource",
+  "min": 1,
+  "max": 7,
+  "start_value": 7,
+  "hud_render": {
+    "should_render": false
+  },
+  "hidden": true,
+  "name": "Scan Filter",
+  "description": "Bitmask: 1 = passive mobs, 2 = hostiles, 4 = players. Default 7 = all."
+}

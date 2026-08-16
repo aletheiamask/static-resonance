@@ -1,0 +1,18 @@
+{
+  "type": "origins:conditioned_attribute",
+  "modifier": {
+    "attribute": "minecraft:generic.knockback_resistance",
+    "operation": "addition",
+    "value": 0.15,
+    "name": "Static resonance charged stability"
+  },
+  "tick_rate": 20,
+  "condition": {
+    "type": "origins:resource",
+    "resource": "static_resonance:systems/charge",
+    "comparison": ">=",
+    "compare_to": 50
+  },
+  "name": "Charged Stability",
+  "description": "While Charge is at least 50, gain knockback resistance."
+}

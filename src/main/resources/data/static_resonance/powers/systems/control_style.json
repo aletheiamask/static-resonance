@@ -1,0 +1,12 @@
+{
+  "type": "origins:resource",
+  "min": 0,
+  "max": 1,
+  "start_value": 0,
+  "hud_render": {
+    "should_render": false
+  },
+  "hidden": true,
+  "name": "Control Style",
+  "description": "0 = single target Magnetic Lock, 1 = expanding Control Field."
+}

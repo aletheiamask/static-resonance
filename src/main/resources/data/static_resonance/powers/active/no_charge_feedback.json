@@ -1,0 +1,133 @@
+{
+  "type": "origins:active_self",
+  "key": {
+    "key": "key.origins.primary_active"
+  },
+  "cooldown": 10,
+  "hud_render": {
+    "should_render": false
+  },
+  "condition": {
+    "type": "origins:or",
+    "conditions": [
+      {
+        "type": "origins:and",
+        "conditions": [
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/mode",
+            "comparison": "==",
+            "compare_to": 0
+          },
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/charge",
+            "comparison": "<",
+            "compare_to": 20
+          }
+        ]
+      },
+      {
+        "type": "origins:and",
+        "conditions": [
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/mode",
+            "comparison": "==",
+            "compare_to": 1
+          },
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/scan_active",
+            "comparison": "==",
+            "compare_to": 0
+          },
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/charge",
+            "comparison": "<",
+            "compare_to": 8
+          }
+        ]
+      },
+      {
+        "type": "origins:and",
+        "conditions": [
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/mode",
+            "comparison": "==",
+            "compare_to": 2
+          },
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/field_active",
+            "comparison": "==",
+            "compare_to": 0
+          },
+          {
+            "type": "origins:or",
+            "conditions": [
+              {
+                "type": "origins:and",
+                "conditions": [
+                  {
+                    "type": "origins:resource",
+                    "resource": "static_resonance:systems/control_style",
+                    "comparison": "==",
+                    "compare_to": 0
+                  },
+                  {
+                    "type": "origins:resource",
+                    "resource": "static_resonance:systems/charge",
+                    "comparison": "<",
+                    "compare_to": 28
+                  }
+                ]
+              },
+              {
+                "type": "origins:and",
+                "conditions": [
+                  {
+                    "type": "origins:resource",
+                    "resource": "static_resonance:systems/control_style",
+                    "comparison": "==",
+                    "compare_to": 1
+                  },
+                  {
+                    "type": "origins:resource",
+                    "resource": "static_resonance:systems/charge",
+                    "comparison": "<",
+                    "compare_to": 40
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "origins:and",
+        "conditions": [
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/mode",
+            "comparison": "==",
+            "compare_to": 3
+          },
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/charge",
+            "comparison": "<",
+            "compare_to": 45
+          }
+        ]
+      }
+    ]
+  },
+  "entity_action": {
+    "type": "origins:execute_command",
+    "command": "function static_resonance:util/no_charge"
+  },
+  "hidden": true
+}

@@ -1,0 +1,57 @@
+{
+  "type": "origins:action_over_time",
+  "interval": 35,
+  "entity_action": {
+    "type": "origins:if_else",
+    "condition": {
+      "type": "origins:or",
+      "conditions": [
+        {
+          "type": "origins:fluid_height",
+          "fluid": "minecraft:water",
+          "comparison": ">",
+          "compare_to": 0.0
+        },
+        {
+          "type": "origins:submerged_in",
+          "fluid": "minecraft:water"
+        },
+        {
+          "type": "origins:in_rain"
+        }
+      ]
+    },
+    "if_action": {
+      "type": "origins:and",
+      "actions": [
+        {
+          "type": "origins:change_resource",
+          "resource": "static_resonance:systems/charge",
+          "change": -3
+        },
+        {
+          "type": "origins:execute_command",
+          "command": "particle minecraft:bubble ~ ~1 ~ 0.3 0.4 0.3 0.02 4 force @a[distance=..24]"
+        }
+      ]
+    },
+    "else_action": {
+      "type": "origins:if_else",
+      "condition": {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/charge",
+        "comparison": "<",
+        "compare_to": 100
+      },
+      "if_action": {
+        "type": "origins:change_resource",
+        "resource": "static_resonance:systems/charge",
+        "change": 2
+      },
+      "else_action": {
+        "type": "origins:nothing"
+      }
+    }
+  },
+  "hidden": true
+}

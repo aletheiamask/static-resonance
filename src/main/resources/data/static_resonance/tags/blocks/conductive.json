@@ -1,0 +1,24 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:redstone_wire",
+    "minecraft:redstone_block",
+    "minecraft:redstone_torch",
+    "minecraft:redstone_wall_torch",
+    "minecraft:repeater",
+    "minecraft:comparator",
+    "minecraft:target",
+    "minecraft:iron_block",
+    "minecraft:iron_bars",
+    "minecraft:iron_door",
+    "minecraft:iron_trapdoor",
+    "minecraft:lightning_rod",
+    "minecraft:copper_block",
+    "minecraft:exposed_copper",
+    "minecraft:weathered_copper",
+    "minecraft:oxidized_copper",
+    "minecraft:cut_copper",
+    "minecraft:gold_block",
+    "minecraft:chain"
+  ]
+}

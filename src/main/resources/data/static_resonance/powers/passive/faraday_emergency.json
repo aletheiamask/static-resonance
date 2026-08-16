@@ -1,0 +1,18 @@
+{
+  "type": "origins:multiple",
+  "prevent_death": {
+    "type": "origins:prevent_death",
+    "condition": {
+      "type": "origins:resource",
+      "resource": "static_resonance:systems/faraday_emergency",
+      "comparison": "==",
+      "compare_to": 1
+    },
+    "entity_action": {
+      "type": "origins:execute_command",
+      "command": "sr_internal faraday_emergency"
+    }
+  },
+  "name": "Faraday Protocol",
+  "description": "Emergency containment when a hit would leave you below 2 health. Toggle from the mode radial (hold R → top skill → click panel)."
+}

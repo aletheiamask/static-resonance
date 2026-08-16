@@ -1,0 +1,13 @@
+{
+  "type": "origins:resource",
+  "min": 0,
+  "max": 100,
+  "start_value": 40,
+  "hud_render": {
+    "should_render": true,
+    "sprite_location": "origins:textures/gui/resource_bar.png",
+    "bar_index": 5
+  },
+  "name": "Static Charge",
+  "description": "Stored electrostatic energy (0 to 100). Abilities spend Charge. Regenerates slowly when dry."
+}

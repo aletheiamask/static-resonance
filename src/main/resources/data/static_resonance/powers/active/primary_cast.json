@@ -1,0 +1,16 @@
+{
+  "type": "origins:active_self",
+  "key": {
+    "key": "key.origins.primary_active"
+  },
+  "cooldown": 4,
+  "hud_render": {
+    "should_render": false
+  },
+  "entity_action": {
+    "type": "origins:execute_command",
+    "command": "sr_internal cast"
+  },
+  "name": "Resonance Discharge",
+  "description": "Primary (G): use the ability of your current mode."
+}

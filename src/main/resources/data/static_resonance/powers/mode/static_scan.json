@@ -1,0 +1,44 @@
+{
+  "type": "origins:active_self",
+  "key": {
+    "key": "key.origins.primary_active"
+  },
+  "cooldown": 8,
+  "hud_render": {
+    "should_render": false
+  },
+  "condition": {
+    "type": "origins:and",
+    "conditions": [
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/mode",
+        "comparison": "==",
+        "compare_to": 1
+      },
+      {
+        "type": "origins:or",
+        "conditions": [
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/scan_active",
+            "comparison": "==",
+            "compare_to": 1
+          },
+          {
+            "type": "origins:resource",
+            "resource": "static_resonance:systems/charge",
+            "comparison": ">=",
+            "compare_to": 8
+          }
+        ]
+      }
+    ]
+  },
+  "entity_action": {
+    "type": "origins:execute_command",
+    "command": "sr_internal cast"
+  },
+  "name": "Static Scan",
+  "description": "Mode Sense: F spends 8 Charge once, marks living in 32 blocks. Green = safe, white = players, red = hostiles. Holds until F or you leave Sense."
+}

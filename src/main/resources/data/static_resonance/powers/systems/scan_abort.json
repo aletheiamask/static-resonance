@@ -1,0 +1,43 @@
+{
+  "type": "origins:action_over_time",
+  "interval": 5,
+  "condition": {
+    "type": "origins:and",
+    "conditions": [
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/scan_active",
+        "comparison": "==",
+        "compare_to": 1
+      },
+      {
+        "type": "origins:resource",
+        "resource": "static_resonance:systems/mode",
+        "comparison": "!=",
+        "compare_to": 1
+      }
+    ]
+  },
+  "entity_action": {
+    "type": "origins:and",
+    "actions": [
+      {
+        "type": "origins:change_resource",
+        "resource": "static_resonance:systems/scan_active",
+        "change": 0,
+        "operation": "set"
+      },
+      {
+        "type": "origins:change_resource",
+        "resource": "static_resonance:systems/scan_radius",
+        "change": 0,
+        "operation": "set"
+      },
+      {
+        "type": "origins:execute_command",
+        "command": "function static_resonance:sense/scan_stop"
+      }
+    ]
+  },
+  "hidden": true
+}

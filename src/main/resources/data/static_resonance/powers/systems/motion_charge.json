@@ -1,0 +1,78 @@
+{
+  "type": "origins:action_over_time",
+  "interval": 20,
+  "condition": {
+    "type": "origins:resource",
+    "resource": "static_resonance:systems/charge",
+    "comparison": "<",
+    "compare_to": 100
+  },
+  "entity_action": {
+    "type": "origins:and",
+    "actions": [
+      {
+        "type": "origins:execute_command",
+        "command": "function static_resonance:systems/motion_harvest"
+      },
+      {
+        "type": "origins:if_else_list",
+        "actions": [
+          {
+            "condition": {
+              "type": "origins:command",
+              "command": "execute if score @s sr_mc matches 7.."
+            },
+            "action": {
+              "type": "origins:change_resource",
+              "resource": "static_resonance:systems/charge",
+              "change": 4
+            }
+          },
+          {
+            "condition": {
+              "type": "origins:command",
+              "command": "execute if score @s sr_mc matches 5..6"
+            },
+            "action": {
+              "type": "origins:change_resource",
+              "resource": "static_resonance:systems/charge",
+              "change": 3
+            }
+          },
+          {
+            "condition": {
+              "type": "origins:command",
+              "command": "execute if score @s sr_mc matches 3..4"
+            },
+            "action": {
+              "type": "origins:change_resource",
+              "resource": "static_resonance:systems/charge",
+              "change": 2
+            }
+          },
+          {
+            "condition": {
+              "type": "origins:command",
+              "command": "execute if score @s sr_mc matches 1..2"
+            },
+            "action": {
+              "type": "origins:change_resource",
+              "resource": "static_resonance:systems/charge",
+              "change": 1
+            }
+          },
+          {
+            "condition": {
+              "type": "origins:constant",
+              "value": true
+            },
+            "action": {
+              "type": "origins:nothing"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "hidden": true
+}

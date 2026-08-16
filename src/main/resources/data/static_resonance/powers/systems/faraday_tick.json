@@ -1,0 +1,26 @@
+{
+  "type": "origins:action_over_time",
+  "interval": 5,
+  "condition": {
+    "type": "origins:or",
+    "conditions": [
+      {
+        "type": "origins:scoreboard",
+        "objective": "sr_faraday",
+        "comparison": ">",
+        "compare_to": 0
+      },
+      {
+        "type": "origins:scoreboard",
+        "objective": "sr_faraday_cd",
+        "comparison": ">",
+        "compare_to": 0
+      }
+    ]
+  },
+  "entity_action": {
+    "type": "origins:execute_command",
+    "command": "function static_resonance:faraday/tick"
+  },
+  "hidden": true
+}
