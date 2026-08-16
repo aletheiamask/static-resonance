@@ -3,7 +3,7 @@
 Minecraft **1.20.1 Forge** content mod that adds the **Static Resonance** origin for **Origins (Forge)**.
 
 **Creator:** Pipothai  
-**GitHub:** https://github.com/aletheiamask  
+**GitHub:** https://github.com/aletheiamask/static-resonance  
 **YouTube:** https://www.youtube.com/@Tuna_Sandwich_TOT  
 
 **License: All Rights Reserved.** You may play this mod. You may not copy, reupload, rebrand, or ship it in another project without written permission from Pipothai. See `LICENSE`.

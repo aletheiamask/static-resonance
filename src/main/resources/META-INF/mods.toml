@@ -8,7 +8,7 @@ version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
 credits="Created by Pipothai. GitHub: https://github.com/aletheiamask · YouTube: https://www.youtube.com/@Tuna_Sandwich_TOT"
-displayURL="https://github.com/aletheiamask"
+displayURL="https://github.com/aletheiamask/static-resonance"
 logoFile="logo.png"
 description='''${mod_description}'''
 
