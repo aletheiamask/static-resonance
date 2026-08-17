@@ -3,6 +3,7 @@ package com.staticresonance.mode;
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.network.CircuitOutlinePacket;
 import com.staticresonance.network.ModNetwork;
+import com.staticresonance.network.PacketLimits;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -48,6 +49,7 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -69,10 +71,11 @@ public final class CircuitService {
     public static final int TOGGLE_TICKS = 160;
     private static final int SCAN_INTERVAL = 20;
     private static final int MOVE_SNAP = 4;
-    private static final int MAX_MARKS = 128;
+    private static final int MAX_MARKS = PacketLimits.MAX_OUTLINE_MARKS;
 
     private static final Map<UUID, Sight> SIGHTS = new ConcurrentHashMap<>();
-    private static final Map<InterfereKey, Interference> INTERFERENCES = new ConcurrentHashMap<>();
+    private static final Map<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>> INTERFERENCES =
+            new ConcurrentHashMap<>();
 
     private CircuitService() {
     }
@@ -139,13 +142,16 @@ public final class CircuitService {
         if (!spend(player, TOGGLE_COST)) {
             return false;
         }
-        InterfereKey key = new InterfereKey(level.dimension(), pos.immutable());
-        Interference existing = INTERFERENCES.get(key);
+        ResourceKey<Level> dim = level.dimension();
+        long packed = pos.asLong();
+        Interference existing = getInterference(dim, packed);
         boolean currentlyOn = isWorking(level, pos, state, existing);
         boolean forceOn = !currentlyOn;
         BlockState saved = existing != null ? existing.saved : state;
-        INTERFERENCES.put(key, new Interference(
-                player.getUUID(), key, saved, forceOn, level.getGameTime() + TOGGLE_TICKS));
+        BlockPos frozen = pos.immutable();
+        putInterference(dim, packed, new Interference(
+                player.getUUID(), dim, frozen, saved, forceOn,
+                level.getGameTime() + TOGGLE_TICKS));
         applyForce(level, pos, saved, forceOn, true);
         Sight sight = SIGHTS.get(player.getUUID());
         if (sight != null) {
@@ -174,7 +180,7 @@ public final class CircuitService {
             return;
         }
         long now = server.overworld().getGameTime();
-        for (UUID id : new ArrayList<>(SIGHTS.keySet())) {
+        for (UUID id : SIGHTS.keySet()) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null || ModeService.getMode(player) != ResonanceMode.CIRCUIT) {
                 if (player != null) {
@@ -233,10 +239,15 @@ public final class CircuitService {
         if (INTERFERENCES.isEmpty() || !(event.getLevel() instanceof ServerLevel level)) {
             return;
         }
-        Interference inf = INTERFERENCES.get(new InterfereKey(level.dimension(), event.getPos()));
-        if (inf != null && !inf.forceOn) {
-            event.setCanceled(true);
+        Interference inf = getInterference(level.dimension(), event.getPos());
+        if (inf == null) {
+            return;
         }
+        if (!inf.forceOn) {
+            event.setCanceled(true);
+            return;
+        }
+        applyForce(level, event.getPos(), inf.saved, true, false);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
@@ -244,7 +255,7 @@ public final class CircuitService {
         if (INTERFERENCES.isEmpty() || !(event.getLevel() instanceof Level level)) {
             return;
         }
-        Interference inf = INTERFERENCES.get(new InterfereKey(level.dimension(), event.getPos()));
+        Interference inf = getInterference(level.dimension(), event.getPos());
         if (inf != null && !inf.forceOn) {
             event.setCanceled(true);
         }
@@ -283,53 +294,67 @@ public final class CircuitService {
             return;
         }
         long now = server.overworld().getGameTime();
-        Iterator<Map.Entry<InterfereKey, Interference>> it = INTERFERENCES.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<InterfereKey, Interference> entry = it.next();
-            Interference inf = entry.getValue();
-            ServerLevel level = server.getLevel(inf.key.dim);
-            if (level == null || !level.hasChunkAt(inf.key.pos)) {
-                continue;
+        Iterator<Map.Entry<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>>> dims =
+                INTERFERENCES.entrySet().iterator();
+        while (dims.hasNext()) {
+            Map.Entry<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>> dimEntry = dims.next();
+            ConcurrentHashMap<Long, Interference> dimMap = dimEntry.getValue();
+            ServerLevel level = server.getLevel(dimEntry.getKey());
+            Iterator<Map.Entry<Long, Interference>> it = dimMap.entrySet().iterator();
+            while (it.hasNext()) {
+                Interference inf = it.next().getValue();
+                if (level == null || !level.hasChunkAt(inf.pos)) {
+                    continue;
+                }
+                if (now >= inf.expireGameTime) {
+                    restore(level, inf);
+                    it.remove();
+                    continue;
+                }
+                BlockState current = level.getBlockState(inf.pos);
+                if (!current.is(inf.saved.getBlock())) {
+                    it.remove();
+                }
             }
-            if (now >= inf.expireGameTime) {
-                restore(level, inf);
-                it.remove();
-                continue;
+            if (dimMap.isEmpty()) {
+                dims.remove();
             }
-            BlockState current = level.getBlockState(inf.key.pos);
-            if (!current.is(inf.saved.getBlock())) {
-                it.remove();
-                continue;
-            }
-            applyForce(level, inf.key.pos, inf.saved, inf.forceOn, false);
         }
     }
 
     private static void restoreOwned(UUID owner) {
-        Iterator<Map.Entry<InterfereKey, Interference>> it = INTERFERENCES.entrySet().iterator();
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        while (it.hasNext()) {
-            Interference inf = it.next().getValue();
-            if (!inf.owner.equals(owner)) {
-                continue;
-            }
-            if (server != null) {
-                ServerLevel level = server.getLevel(inf.key.dim);
-                if (level != null && level.hasChunkAt(inf.key.pos)) {
-                    restore(level, inf);
+        Iterator<Map.Entry<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>>> dims =
+                INTERFERENCES.entrySet().iterator();
+        while (dims.hasNext()) {
+            ConcurrentHashMap<Long, Interference> dimMap = dims.next().getValue();
+            Iterator<Map.Entry<Long, Interference>> it = dimMap.entrySet().iterator();
+            while (it.hasNext()) {
+                Interference inf = it.next().getValue();
+                if (!inf.owner.equals(owner)) {
+                    continue;
                 }
+                if (server != null) {
+                    ServerLevel level = server.getLevel(inf.dim);
+                    if (level != null && level.hasChunkAt(inf.pos)) {
+                        restore(level, inf);
+                    }
+                }
+                it.remove();
             }
-            it.remove();
+            if (dimMap.isEmpty()) {
+                dims.remove();
+            }
         }
     }
 
     private static void restore(ServerLevel level, Interference inf) {
-        BlockState current = level.getBlockState(inf.key.pos);
+        BlockState current = level.getBlockState(inf.pos);
         if (!current.is(inf.saved.getBlock())) {
             return;
         }
-        level.setBlock(inf.key.pos, inf.saved, Block.UPDATE_ALL);
-        level.updateNeighborsAt(inf.key.pos, inf.saved.getBlock());
+        level.setBlock(inf.pos, inf.saved, Block.UPDATE_ALL);
+        level.updateNeighborsAt(inf.pos, inf.saved.getBlock());
     }
 
     private static void refreshSight(ServerPlayer player, Sight sight, boolean forceSend) {
@@ -343,13 +368,16 @@ public final class CircuitService {
         int maxY = Math.min(origin.getY() + r, level.getMaxBuildHeight() - 1);
         int minZ = origin.getZ() - r;
         int maxZ = origin.getZ() + r;
-        List<CircuitOutlinePacket.Entry> found = new ArrayList<>();
+        List<CircuitOutlinePacket.Entry> found = new ArrayList<>(MAX_MARKS + 1);
         int minCx = minX >> 4;
         int maxCx = maxX >> 4;
         int minCz = minZ >> 4;
         int maxCz = maxZ >> 4;
         int minCy = minY >> 4;
         int maxCy = maxY >> 4;
+        ResourceKey<Level> dim = level.dimension();
+        boolean probeInterfere = !INTERFERENCES.isEmpty();
+        List<int[]> sections = new ArrayList<>();
         for (int cx = minCx; cx <= maxCx; cx++) {
             for (int cz = minCz; cz <= maxCz; cz++) {
                 if (!level.hasChunk(cx, cz)) {
@@ -365,40 +393,75 @@ public final class CircuitService {
                     if (section.hasOnlyAir() || !section.maybeHas(state -> state.is(CIRCUIT_TAG))) {
                         continue;
                     }
-                    int x0 = Math.max(minX, cx << 4);
-                    int x1 = Math.min(maxX, (cx << 4) + 15);
-                    int y0 = Math.max(minY, cy << 4);
-                    int y1 = Math.min(maxY, (cy << 4) + 15);
-                    int z0 = Math.max(minZ, cz << 4);
-                    int z1 = Math.min(maxZ, (cz << 4) + 15);
-                    for (int y = y0; y <= y1; y++) {
-                        int ly = y & 15;
-                        for (int x = x0; x <= x1; x++) {
-                            int dx = x - origin.getX();
-                            int lx = x & 15;
-                            for (int z = z0; z <= z1; z++) {
-                                int dz = z - origin.getZ();
-                                int dy = y - origin.getY();
-                                if (dx * dx + dy * dy + dz * dz > rSq) {
-                                    continue;
-                                }
-                                BlockState state = section.getBlockState(lx, ly, z & 15);
-                                if (!state.is(CIRCUIT_TAG)) {
-                                    continue;
-                                }
-                                BlockPos pos = new BlockPos(x, y, z);
-                                Interference inf = INTERFERENCES.get(new InterfereKey(level.dimension(), pos));
-                                found.add(new CircuitOutlinePacket.Entry(pos, isWorking(level, pos, state, inf)));
-                            }
+                    int midX = (cx << 4) + 8;
+                    int midY = (cy << 4) + 8;
+                    int midZ = (cz << 4) + 8;
+                    int manh = Math.abs(midX - origin.getX())
+                            + Math.abs(midY - origin.getY())
+                            + Math.abs(midZ - origin.getZ());
+                    sections.add(new int[]{cx, cz, cy, manh});
+                }
+            }
+        }
+        sections.sort(Comparator.comparingInt(s -> s[3]));
+        boolean dense = false;
+        scan:
+        for (int[] sect : sections) {
+            if (found.size() > MAX_MARKS) {
+                dense = true;
+                break;
+            }
+            int cx = sect[0];
+            int cz = sect[1];
+            int cy = sect[2];
+            var chunk = level.getChunk(cx, cz);
+            int sectionIndex = chunk.getSectionIndexFromSectionY(cy);
+            if (sectionIndex < 0 || sectionIndex >= chunk.getSectionsCount()) {
+                continue;
+            }
+            var section = chunk.getSection(sectionIndex);
+            int x0 = Math.max(minX, cx << 4);
+            int x1 = Math.min(maxX, (cx << 4) + 15);
+            int y0 = Math.max(minY, cy << 4);
+            int y1 = Math.min(maxY, (cy << 4) + 15);
+            int z0 = Math.max(minZ, cz << 4);
+            int z1 = Math.min(maxZ, (cz << 4) + 15);
+            for (int y = y0; y <= y1; y++) {
+                int ly = y & 15;
+                int dy = y - origin.getY();
+                for (int z = z0; z <= z1; z++) {
+                    int lz = z & 15;
+                    int dz = z - origin.getZ();
+                    for (int x = x0; x <= x1; x++) {
+                        int dx = x - origin.getX();
+                        if (dx * dx + dy * dy + dz * dz > rSq) {
+                            continue;
+                        }
+                        BlockState state = section.getBlockState(x & 15, ly, lz);
+                        if (!state.is(CIRCUIT_TAG)) {
+                            continue;
+                        }
+                        BlockPos pos = new BlockPos(x, y, z);
+                        Interference inf = probeInterfere
+                                ? getInterference(dim, BlockPos.asLong(x, y, z))
+                                : null;
+                        found.add(new CircuitOutlinePacket.Entry(pos, isWorking(level, pos, state, inf)));
+                        if (found.size() > MAX_MARKS) {
+                            dense = true;
+                            break scan;
                         }
                     }
                 }
             }
         }
-        if (found.size() > MAX_MARKS) {
-            found.sort((a, b) -> Integer.compare(a.pos().distManhattan(origin), b.pos().distManhattan(origin)));
-            found.subList(MAX_MARKS, found.size()).clear();
-            ActionBars.show(player, Component.translatable("ui.static_resonance.circuit_dense"));
+        if (dense) {
+            if (found.size() > MAX_MARKS) {
+                found.subList(MAX_MARKS, found.size()).clear();
+            }
+            if (!sight.denseWarned) {
+                ActionBars.show(player, Component.translatable("ui.static_resonance.circuit_dense"));
+                sight.denseWarned = true;
+            }
         }
         Map<BlockPos, Boolean> next = new HashMap<>(found.size());
         for (CircuitOutlinePacket.Entry entry : found) {
@@ -613,26 +676,41 @@ public final class CircuitService {
         }
     }
 
+    @Nullable
+    private static Interference getInterference(ResourceKey<Level> dim, BlockPos pos) {
+        return getInterference(dim, pos.asLong());
+    }
+
+    @Nullable
+    private static Interference getInterference(ResourceKey<Level> dim, long packed) {
+        ConcurrentHashMap<Long, Interference> dimMap = INTERFERENCES.get(dim);
+        return dimMap == null ? null : dimMap.get(packed);
+    }
+
+    private static void putInterference(ResourceKey<Level> dim, long packed, Interference inf) {
+        INTERFERENCES.computeIfAbsent(dim, key -> new ConcurrentHashMap<>()).put(packed, inf);
+    }
+
     private static final class Sight {
         private Map<BlockPos, Boolean> marks = new HashMap<>();
         private BlockPos lastOrigin;
         private boolean dirty = true;
-    }
-
-    private record InterfereKey(ResourceKey<Level> dim, BlockPos pos) {
+        private boolean denseWarned;
     }
 
     static final class Interference {
         private final UUID owner;
-        private final InterfereKey key;
+        private final ResourceKey<Level> dim;
+        private final BlockPos pos;
         private final BlockState saved;
         private final boolean forceOn;
         private final long expireGameTime;
 
-        private Interference(UUID owner, InterfereKey key, BlockState saved,
+        private Interference(UUID owner, ResourceKey<Level> dim, BlockPos pos, BlockState saved,
                              boolean forceOn, long expireGameTime) {
             this.owner = owner;
-            this.key = key;
+            this.dim = dim;
+            this.pos = pos;
             this.saved = saved;
             this.forceOn = forceOn;
             this.expireGameTime = expireGameTime;

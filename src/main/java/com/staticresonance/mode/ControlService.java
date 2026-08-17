@@ -30,8 +30,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -292,8 +290,7 @@ public final class ControlService {
         if (server == null) {
             return;
         }
-        List<UUID> ids = new ArrayList<>(SESSIONS.keySet());
-        for (UUID id : ids) {
+        for (UUID id : SESSIONS.keySet()) {
             FieldSession session = SESSIONS.get(id);
             if (session == null) {
                 continue;

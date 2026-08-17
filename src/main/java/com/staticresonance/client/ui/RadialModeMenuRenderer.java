@@ -147,19 +147,29 @@ public final class RadialModeMenuRenderer {
         }
         Font font = mc.font;
         // Radial is select-only — never grey wedges by G-cast cost
+        try {
+            for (RadialWedge wedge : RadialWedge.values()) {
+                float h = HOVER_ANIM[wedge.ordinal()];
+                float outer = outerBase * (1f + HOVER_SCALE * h);
+                boolean selected = wedge.mode() == current;
+                int fill = selected
+                        ? lerpRgb(COL_ON, COL_ON_HOVER, h)
+                        : lerpRgb(COL_UNSELECTED, COL_SELECTED, h);
+                drawWedge(graphics, cx, cy, inner, outer, wedge.startDeg(), wedge.endDeg(),
+                        fill, h, selected);
+            }
+            drawCenterDiscs(graphics, cx, cy, inner);
+        } finally {
+            flushSectors();
+        }
+
+        drawCenterSkillText(graphics, mc, cx, cy, current);
+
         for (RadialWedge wedge : RadialWedge.values()) {
             float h = HOVER_ANIM[wedge.ordinal()];
             float outer = outerBase * (1f + HOVER_SCALE * h);
-            boolean selected = wedge.mode() == current;
-            int fill = selected
-                    ? lerpRgb(COL_ON, COL_ON_HOVER, h)
-                    : lerpRgb(COL_UNSELECTED, COL_SELECTED, h);
-            drawWedge(graphics, cx, cy, inner, outer, wedge.startDeg(), wedge.endDeg(),
-                    fill, h, selected);
             drawItemIcon(graphics, wedge, cx, cy, inner, outer, h);
         }
-
-        drawCenterChrome(graphics, mc, cx, cy, inner, current, true);
 
         for (RadialWedge wedge : RadialWedge.values()) {
             float h = HOVER_ANIM[wedge.ordinal()];
@@ -205,10 +215,13 @@ public final class RadialModeMenuRenderer {
                     ? lerpRgb(COL_ON, COL_ON_HOVER, h)
                     : lerpRgb(COL_OFF, COL_GREY, h);
             float outer = outerBase * (1f + HOVER_SCALE * h);
-            drawWedge(graphics, cx, cy, inner, outer, -180f, 180f, fill, h, armed);
-            drawOnOffRim(graphics, cx, cy, inner, outer, -180f, 180f, armed, h);
-
-            drawCenterChrome(graphics, mc, cx, cy, inner, null, false);
+            try {
+                drawWedge(graphics, cx, cy, inner, outer, -180f, 180f, fill, h, armed);
+                drawOnOffRim(graphics, cx, cy, inner, outer, -180f, 180f, armed, h);
+                drawCenterDiscs(graphics, cx, cy, inner);
+            } finally {
+                flushSectors();
+            }
             graphics.drawCenteredString(font, Component.translatable("ui.static_resonance.sub_back"),
                     (int) cx, (int) (cy - 4), hover == SubHover.BACK ? 0xFFFFFFFF : 0xFFB0B0B0);
 
@@ -248,12 +261,15 @@ public final class RadialModeMenuRenderer {
                     ? lerpRgb(COL_ON, COL_ON_HOVER, hf)
                     : lerpRgb(COL_OFF, COL_GREY, hf);
 
-            drawWedge(graphics, cx, cy, inner, outerT, 90f, 270f, fillT, ht, targetOn);
-            drawOnOffRim(graphics, cx, cy, inner, outerT, 90f, 270f, targetOn, ht);
-            drawWedge(graphics, cx, cy, inner, outerF, -90f, 90f, fillF, hf, fieldOn);
-            drawOnOffRim(graphics, cx, cy, inner, outerF, -90f, 90f, fieldOn, hf);
-
-            drawCenterChrome(graphics, mc, cx, cy, inner, null, false);
+            try {
+                drawWedge(graphics, cx, cy, inner, outerT, 90f, 270f, fillT, ht, targetOn);
+                drawOnOffRim(graphics, cx, cy, inner, outerT, 90f, 270f, targetOn, ht);
+                drawWedge(graphics, cx, cy, inner, outerF, -90f, 90f, fillF, hf, fieldOn);
+                drawOnOffRim(graphics, cx, cy, inner, outerF, -90f, 90f, fieldOn, hf);
+                drawCenterDiscs(graphics, cx, cy, inner);
+            } finally {
+                flushSectors();
+            }
             graphics.drawCenteredString(font, Component.translatable("ui.static_resonance.sub_back"),
                     (int) cx, (int) (cy - 4), hover == SubHover.BACK ? 0xFFFFFFFF : 0xFFB0B0B0);
 
@@ -317,11 +333,15 @@ public final class RadialModeMenuRenderer {
         int fillZ = zoneOn ? lerpRgb(COL_ON, COL_ON_HOVER, hz) : lerpRgb(COL_OFF, COL_GREY, hz);
         float outerB = outerBase * (1f + HOVER_SCALE * hb);
         float outerZ = outerBase * (1f + HOVER_SCALE * hz);
-        drawWedge(graphics, cx, cy, inner, outerB, 90f, 270f, fillB, hb, burstOn);
-        drawOnOffRim(graphics, cx, cy, inner, outerB, 90f, 270f, burstOn, hb);
-        drawWedge(graphics, cx, cy, inner, outerZ, -90f, 90f, fillZ, hz, zoneOn);
-        drawOnOffRim(graphics, cx, cy, inner, outerZ, -90f, 90f, zoneOn, hz);
-        drawCenterChrome(graphics, mc, cx, cy, inner, null, false);
+        try {
+            drawWedge(graphics, cx, cy, inner, outerB, 90f, 270f, fillB, hb, burstOn);
+            drawOnOffRim(graphics, cx, cy, inner, outerB, 90f, 270f, burstOn, hb);
+            drawWedge(graphics, cx, cy, inner, outerZ, -90f, 90f, fillZ, hz, zoneOn);
+            drawOnOffRim(graphics, cx, cy, inner, outerZ, -90f, 90f, zoneOn, hz);
+            drawCenterDiscs(graphics, cx, cy, inner);
+        } finally {
+            flushSectors();
+        }
         graphics.drawCenteredString(font, Component.translatable("ui.static_resonance.sub_back"),
                 (int) cx, (int) (cy - 4), hover == SubHover.BACK ? 0xFFFFFFFF : 0xFFB0B0B0);
         graphics.drawCenteredString(font, Component.translatable("skill.static_resonance.dust_curtain"),
@@ -357,16 +377,20 @@ public final class RadialModeMenuRenderer {
         float outerP = outerBase * (1f + HOVER_SCALE * hp);
         float outerH = outerBase * (1f + HOVER_SCALE * hh);
         float outerU = outerBase * (1f + HOVER_SCALE * hu);
-        drawWedge(graphics, cx, cy, inner, outerP, 90f, 210f,
-                passiveOn ? lerpRgb(COL_ON, COL_ON_HOVER, hp) : lerpRgb(COL_OFF, COL_GREY, hp), hp, passiveOn);
-        drawOnOffRim(graphics, cx, cy, inner, outerP, 90f, 210f, passiveOn, hp);
-        drawWedge(graphics, cx, cy, inner, outerH, -90f, 30f,
-                hostileOn ? lerpRgb(COL_ON, COL_ON_HOVER, hh) : lerpRgb(COL_OFF, COL_GREY, hh), hh, hostileOn);
-        drawOnOffRim(graphics, cx, cy, inner, outerH, -90f, 30f, hostileOn, hh);
-        drawWedge(graphics, cx, cy, inner, outerU, 30f, 90f,
-                playersOn ? lerpRgb(COL_ON, COL_ON_HOVER, hu) : lerpRgb(COL_OFF, COL_GREY, hu), hu, playersOn);
-        drawOnOffRim(graphics, cx, cy, inner, outerU, 30f, 90f, playersOn, hu);
-        drawCenterChrome(graphics, mc, cx, cy, inner, null, false);
+        try {
+            drawWedge(graphics, cx, cy, inner, outerP, 90f, 210f,
+                    passiveOn ? lerpRgb(COL_ON, COL_ON_HOVER, hp) : lerpRgb(COL_OFF, COL_GREY, hp), hp, passiveOn);
+            drawOnOffRim(graphics, cx, cy, inner, outerP, 90f, 210f, passiveOn, hp);
+            drawWedge(graphics, cx, cy, inner, outerH, -90f, 30f,
+                    hostileOn ? lerpRgb(COL_ON, COL_ON_HOVER, hh) : lerpRgb(COL_OFF, COL_GREY, hh), hh, hostileOn);
+            drawOnOffRim(graphics, cx, cy, inner, outerH, -90f, 30f, hostileOn, hh);
+            drawWedge(graphics, cx, cy, inner, outerU, 30f, 90f,
+                    playersOn ? lerpRgb(COL_ON, COL_ON_HOVER, hu) : lerpRgb(COL_OFF, COL_GREY, hu), hu, playersOn);
+            drawOnOffRim(graphics, cx, cy, inner, outerU, 30f, 90f, playersOn, hu);
+            drawCenterDiscs(graphics, cx, cy, inner);
+        } finally {
+            flushSectors();
+        }
         graphics.drawCenteredString(font, Component.translatable("ui.static_resonance.sub_back"),
                 (int) cx, (int) (cy - 4), hover == SubHover.BACK ? 0xFFFFFFFF : 0xFFB0B0B0);
         graphics.drawCenteredString(font, Component.translatable("skill.static_resonance.static_scan"),
@@ -383,23 +407,21 @@ public final class RadialModeMenuRenderer {
                 (int) cx, (int) (cy + outerBase + 22), 0xFF90A4AE);
     }
 
-    private static void drawCenterChrome(GuiGraphics graphics, Minecraft mc, float cx, float cy,
-                                         float inner, @javax.annotation.Nullable ResonanceMode current,
-                                         boolean showSkill) {
+    private static void drawCenterDiscs(GuiGraphics graphics, float cx, float cy, float inner) {
         drawDisc(graphics, cx, cy, inner * 0.92f, withAlpha(COL_CENTER_FILL, 200));
         drawRing(graphics, cx, cy, inner * 0.92f, withAlpha(COL_BORDER_DARK, 200), 2.2f);
         drawRing(graphics, cx, cy, inner * 0.92f - 2.2f, withAlpha(COL_BORDER_LIGHT, 140), 1.2f);
+    }
 
-        if (showSkill && current != null) {
-            Font font = mc.font;
-            Component centerSkill = Component.translatable(current.skillLangKey());
-            graphics.drawCenteredString(font, centerSkill, (int) cx, (int) (cy - 6), 0xFFFFFFFF);
-            int charge = RadialModeMenu.liveCharge(mc);
-            if (charge != Integer.MIN_VALUE) {
-                Component chargeText = Component.translatable("ui.static_resonance.charge_pip", charge);
-                int col = 0xFFB0B0B0;
-                graphics.drawCenteredString(font, chargeText, (int) cx, (int) (cy + 6), col);
-            }
+    private static void drawCenterSkillText(GuiGraphics graphics, Minecraft mc, float cx, float cy,
+                                            ResonanceMode current) {
+        Font font = mc.font;
+        Component centerSkill = Component.translatable(current.skillLangKey());
+        graphics.drawCenteredString(font, centerSkill, (int) cx, (int) (cy - 6), 0xFFFFFFFF);
+        int charge = RadialModeMenu.liveCharge(mc);
+        if (charge != Integer.MIN_VALUE) {
+            Component chargeText = Component.translatable("ui.static_resonance.charge_pip", charge);
+            graphics.drawCenteredString(font, chargeText, (int) cx, (int) (cy + 6), 0xFFB0B0B0);
         }
     }
 
@@ -508,6 +530,25 @@ public final class RadialModeMenuRenderer {
         }
     }
 
+    private static boolean sectorBatchOpen;
+
+    private static void ensureSectorBatch() {
+        if (sectorBatchOpen) {
+            return;
+        }
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+        buffer.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        sectorBatchOpen = true;
+    }
+
+    private static void flushSectors() {
+        if (!sectorBatchOpen) {
+            return;
+        }
+        Tesselator.getInstance().end();
+        sectorBatchOpen = false;
+    }
+
     private static void fillAnnularSector(GuiGraphics graphics, float cx, float cy,
                                           float inner, float outer,
                                           float startDeg, float endDeg, int argb) {
@@ -521,19 +562,34 @@ public final class RadialModeMenuRenderer {
         float r = ((argb >> 16) & 0xFF) / 255f;
         float g = ((argb >> 8) & 0xFF) / 255f;
         float b = (argb & 0xFF) / 255f;
+        float innerA = a * 0.85f;
 
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder buffer = tesselator.getBuilder();
-        buffer.begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
-        for (int i = 0; i <= SEGMENTS_PER_WEDGE; i++) {
+        ensureSectorBatch();
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+        float prevCos = Mth.cos(start);
+        float prevSin = Mth.sin(start);
+        for (int i = 1; i <= SEGMENTS_PER_WEDGE; i++) {
             float t = i / (float) SEGMENTS_PER_WEDGE;
             float ang = start + (end - start) * t;
             float cos = Mth.cos(ang);
             float sin = Mth.sin(ang);
-            buffer.vertex(matrix, cx + cos * outer, cy + sin * outer, 0).color(r, g, b, a).endVertex();
-            buffer.vertex(matrix, cx + cos * inner, cy + sin * inner, 0).color(r, g, b, a * 0.85f).endVertex();
+            float ox0 = cx + prevCos * outer;
+            float oy0 = cy + prevSin * outer;
+            float ix0 = cx + prevCos * inner;
+            float iy0 = cy + prevSin * inner;
+            float ox1 = cx + cos * outer;
+            float oy1 = cy + sin * outer;
+            float ix1 = cx + cos * inner;
+            float iy1 = cy + sin * inner;
+            buffer.vertex(matrix, ox0, oy0, 0).color(r, g, b, a).endVertex();
+            buffer.vertex(matrix, ix0, iy0, 0).color(r, g, b, innerA).endVertex();
+            buffer.vertex(matrix, ox1, oy1, 0).color(r, g, b, a).endVertex();
+            buffer.vertex(matrix, ix0, iy0, 0).color(r, g, b, innerA).endVertex();
+            buffer.vertex(matrix, ix1, iy1, 0).color(r, g, b, innerA).endVertex();
+            buffer.vertex(matrix, ox1, oy1, 0).color(r, g, b, a).endVertex();
+            prevCos = cos;
+            prevSin = sin;
         }
-        tesselator.end();
     }
 
     private static void drawDisc(GuiGraphics graphics, float cx, float cy, float radius, int argb) {

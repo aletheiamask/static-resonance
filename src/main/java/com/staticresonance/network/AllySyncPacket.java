@@ -20,14 +20,14 @@ public record AllySyncPacket(List<UUID> allies) {
     }
 
     public static void encode(AllySyncPacket packet, FriendlyByteBuf buf) {
-        buf.writeVarInt(packet.allies.size());
-        for (UUID id : packet.allies) {
-            buf.writeUUID(id);
+        int n = PacketLimits.writeCount(buf, packet.allies.size(), PacketLimits.MAX_ALLIES);
+        for (int i = 0; i < n; i++) {
+            buf.writeUUID(packet.allies.get(i));
         }
     }
 
     public static AllySyncPacket decode(FriendlyByteBuf buf) {
-        int n = buf.readVarInt();
+        int n = PacketLimits.readCount(buf, PacketLimits.MAX_ALLIES);
         List<UUID> list = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             list.add(buf.readUUID());

@@ -1,8 +1,12 @@
 package com.staticresonance.mode;
 
+import com.staticresonance.StaticResonanceMod;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.common.Mod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -17,6 +21,7 @@ import java.util.OptionalInt;
  * </ul>
  * ModeService must never hard-link either API at class-load time — the pack may only have one.
  */
+@Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID)
 public final class ApoliResources {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -47,6 +52,13 @@ public final class ApoliResources {
     public static void sync(Player player) {
         if (BACKEND != null) {
             BACKEND.sync(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onReload(AddReloadListenerEvent event) {
+        if (BACKEND != null) {
+            BACKEND.invalidate();
         }
     }
 
@@ -94,6 +106,9 @@ public final class ApoliResources {
         boolean setValue(Player player, ResourceLocation powerId, int value);
 
         void sync(Player player);
+
+        default void invalidate() {
+        }
     }
 
     /**
@@ -155,6 +170,7 @@ public final class ApoliResources {
         private final java.lang.reflect.Method syncEntity;
         private final Class<?> powerTypeClass;
         private final Class<?> variableIntPowerClass;
+        private final java.util.Map<ResourceLocation, Object> powerTypes = new java.util.concurrent.ConcurrentHashMap<>();
 
         FabricBackend() throws Exception {
             powerHolderClass = Class.forName("io.github.apace100.apoli.component.PowerHolderComponent");
@@ -187,14 +203,27 @@ public final class ApoliResources {
 
         @Nullable
         private Object powerType(ResourceLocation powerId) {
+            Object cached = powerTypes.get(powerId);
+            if (cached != null) {
+                return cached;
+            }
             try {
                 if (!(boolean) registryContains.invoke(null, powerId)) {
                     return null;
                 }
-                return registryGet.invoke(null, powerId);
+                Object type = registryGet.invoke(null, powerId);
+                if (type != null) {
+                    powerTypes.put(powerId, type);
+                }
+                return type;
             } catch (ReflectiveOperationException e) {
                 return null;
             }
+        }
+
+        @Override
+        public void invalidate() {
+            powerTypes.clear();
         }
 
         @Override

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.mode.ScanOutlineService;
+import com.staticresonance.network.PacketLimits;
 import com.staticresonance.network.ScanOutlinePacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -27,7 +28,8 @@ import net.minecraftforge.fml.common.Mod;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -50,7 +52,7 @@ public final class ScanOutlineClient {
     private static final DustParticleOptions DUST_HOSTILE =
             new DustParticleOptions(new Vector3f(1.00f, 0.22f, 0.20f), 1.0f);
 
-    private static final Set<UUID> MARKED = new HashSet<>();
+    private static final Set<UUID> MARKED = new LinkedHashSet<>();
     private static final List<LivingEntity> CACHED = new ArrayList<>();
     private static int clientTick;
     private static int revealTicks;
@@ -60,12 +62,24 @@ public final class ScanOutlineClient {
     }
 
     public static void handle(ScanOutlinePacket packet) {
-        if (packet.clearAll()) {
+        List<UUID> ids = packet.entityIds();
+        if (packet.clearAll() && ids.isEmpty()) {
             clearScanMarks();
             return;
         }
         boolean first = MARKED.isEmpty();
-        MARKED.addAll(packet.entityIds());
+        if (packet.clearAll()) {
+            MARKED.clear();
+        }
+        MARKED.addAll(ids);
+        while (MARKED.size() > PacketLimits.MAX_OUTLINE_MARKS) {
+            Iterator<UUID> it = MARKED.iterator();
+            if (!it.hasNext()) {
+                break;
+            }
+            it.next();
+            it.remove();
+        }
         if (first) {
             Minecraft mc = Minecraft.getInstance();
             scanOrigin = mc.player != null ? mc.player.position() : null;
@@ -87,7 +101,9 @@ public final class ScanOutlineClient {
         if (revealTicks < REVEAL_TICKS && !MARKED.isEmpty()) {
             revealTicks++;
         }
-        rebuildCache(level, mc.player);
+        if ((clientTick & 1) == 0 || CACHED.isEmpty()) {
+            rebuildCache(level, mc.player);
+        }
         if (!CACHED.isEmpty() && clientTick % SPARK_INTERVAL == 0) {
             spawnLocalFlecks(level);
         }
@@ -115,13 +131,15 @@ public final class ScanOutlineClient {
         boolean expanding = revealTicks < REVEAL_TICKS && scanOrigin != null;
         double revealSq = reveal * reveal;
         for (LivingEntity living : CACHED) {
+            if (!living.isAlive()) {
+                continue;
+            }
             if (expanding && living.distanceToSqr(scanOrigin) > revealSq) {
                 continue;
             }
             float[] rgb = colorFor(living);
             AABB box = living.getBoundingBox().inflate(0.06);
             LevelRenderer.renderLineBox(pose, lines, box, rgb[0], rgb[1], rgb[2], 0.95f);
-            LevelRenderer.renderLineBox(pose, lines, box.inflate(0.05), rgb[0], rgb[1], rgb[2], 0.35f);
         }
         buffers.endBatch(type);
         pose.popPose();
@@ -165,8 +183,14 @@ public final class ScanOutlineClient {
             return;
         }
         AABB search = player.getBoundingBox().inflate(ScanOutlineService.SCAN_RADIUS);
-        CACHED.addAll(level.getEntitiesOfClass(LivingEntity.class, search,
-                e -> e.isAlive() && MARKED.contains(e.getUUID())));
+        for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, search,
+                e -> MARKED.contains(e.getUUID()))) {
+            if (!living.isAlive()) {
+                MARKED.remove(living.getUUID());
+                continue;
+            }
+            CACHED.add(living);
+        }
     }
 
     private static DustParticleOptions dustFor(Entity entity) {

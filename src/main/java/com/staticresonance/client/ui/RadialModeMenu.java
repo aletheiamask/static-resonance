@@ -153,13 +153,15 @@ public final class RadialModeMenu {
             wasDown = false;
             return;
         }
+        boolean down = ModKeyBindings.MODE_MENU.isDown();
+        if (!down && !wasDown) {
+            return;
+        }
         if (!ModeService.hasModePower(player)) {
             reset(mc);
             wasDown = false;
             return;
         }
-
-        boolean down = ModKeyBindings.MODE_MENU.isDown();
         if (down && !wasDown) {
             onPress();
         } else if (down && wasDown) {

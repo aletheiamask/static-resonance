@@ -30,7 +30,10 @@ public final class CastKeyHandler {
         if (player == null || mc.level == null || mc.screen != null) {
             return;
         }
-        if (RadialModeMenu.isOpen() || !ModeService.hasModePower(player)) {
+        if (RadialModeMenu.isOpen() || !ModKeyBindings.CAST.isDown()) {
+            return;
+        }
+        if (!ModeService.hasModePower(player)) {
             return;
         }
         if (!ModKeyBindings.CAST.consumeClick()) {

@@ -9,6 +9,9 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.function.Predicate;
 
 /**
@@ -17,6 +20,7 @@ import java.util.function.Predicate;
 public final class LookTargets {
     public static final double DEFAULT_RANGE = 64.0;
     public static final double DEFAULT_CONE_DEG = 40.0;
+    private static final int CONE_CANDIDATE_CAP = 32;
 
     private LookTargets() {
     }
@@ -57,12 +61,18 @@ public final class LookTargets {
         double fallback = Math.min(range, 32.0);
         double fallbackSq = fallback * fallback;
         AABB around = player.getBoundingBox().inflate(fallback);
-        for (LivingEntity living : player.level().getEntitiesOfClass(LivingEntity.class, around, e ->
-                e.isAlive()
-                        && e != player
-                        && !e.isSpectator()
-                        && extra.test(e)
-                        && e.distanceToSqr(player) <= fallbackSq)) {
+        List<LivingEntity> candidates = new ArrayList<>(player.level().getEntitiesOfClass(
+                LivingEntity.class, around, e ->
+                        e.isAlive()
+                                && e != player
+                                && !e.isSpectator()
+                                && extra.test(e)
+                                && e.distanceToSqr(player) <= fallbackSq));
+        if (candidates.size() > CONE_CANDIDATE_CAP) {
+            candidates.sort(Comparator.comparingDouble(e -> e.distanceToSqr(player)));
+            candidates = candidates.subList(0, CONE_CANDIDATE_CAP);
+        }
+        for (LivingEntity living : candidates) {
             Vec3 toCenter = living.getEyePosition().subtract(eye);
             double dist = toCenter.length();
             if (dist < 0.25) {

@@ -26,10 +26,10 @@ public final class ClimbService {
             return;
         }
         Player player = event.player;
-        if (player.isSpectator() || player.isInWater() || !player.horizontalCollision) {
+        if (!ModeService.hasModePower(player)) {
             return;
         }
-        if (!ModeService.hasModePower(player)) {
+        if (player.isSpectator() || player.isInWater() || !player.horizontalCollision) {
             return;
         }
         Vec3 m = player.getDeltaMovement();

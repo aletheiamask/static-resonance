@@ -1,16 +1,31 @@
 package com.staticresonance.mode;
 
+import com.staticresonance.StaticResonanceMod;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+
+import java.util.UUID;
 
 /**
  * One Origins primary (G) → current mode skill. Avoids stacking four G powers in Origins HUD.
  */
+@Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID)
 public final class CastService {
+    private static final TickGate CAST_GATE = new TickGate(6);
+
     private CastService() {
     }
 
     public static boolean castPrimary(ServerPlayer player) {
+        long gameTime = player.level().getGameTime();
+        UUID id = player.getUUID();
+        if (CAST_GATE.blocked(id, gameTime)) {
+            return false;
+        }
+        CAST_GATE.stamp(id, gameTime);
         if (!ModeService.hasModePower(player)) {
             return false;
         }
@@ -40,5 +55,10 @@ public final class CastService {
             return true;
         }
         return ControlService.lockLookTarget(player);
+    }
+
+    @SubscribeEvent
+    public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        CAST_GATE.clear(event.getEntity().getUUID());
     }
 }

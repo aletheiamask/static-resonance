@@ -11,21 +11,21 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * Server → scanner client only: add or clear private scan outlines.
+ * Server → scanner client only: replace, add, or clear private scan outlines.
  */
 public record ScanOutlinePacket(boolean clearAll, List<UUID> entityIds) {
 
     public static void encode(ScanOutlinePacket packet, FriendlyByteBuf buf) {
         buf.writeBoolean(packet.clearAll);
-        buf.writeVarInt(packet.entityIds.size());
-        for (UUID id : packet.entityIds) {
-            buf.writeUUID(id);
+        int n = PacketLimits.writeCount(buf, packet.entityIds.size(), PacketLimits.MAX_OUTLINE_MARKS);
+        for (int i = 0; i < n; i++) {
+            buf.writeUUID(packet.entityIds.get(i));
         }
     }
 
     public static ScanOutlinePacket decode(FriendlyByteBuf buf) {
         boolean clearAll = buf.readBoolean();
-        int n = buf.readVarInt();
+        int n = PacketLimits.readCount(buf, PacketLimits.MAX_OUTLINE_MARKS);
         List<UUID> ids = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             ids.add(buf.readUUID());

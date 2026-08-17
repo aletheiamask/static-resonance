@@ -20,8 +20,9 @@ public record CircuitOutlinePacket(boolean clearAll, List<Entry> entries) {
 
     public static void encode(CircuitOutlinePacket packet, FriendlyByteBuf buf) {
         buf.writeBoolean(packet.clearAll);
-        buf.writeVarInt(packet.entries.size());
-        for (Entry entry : packet.entries) {
+        int n = PacketLimits.writeCount(buf, packet.entries.size(), PacketLimits.MAX_OUTLINE_MARKS);
+        for (int i = 0; i < n; i++) {
+            Entry entry = packet.entries.get(i);
             buf.writeBlockPos(entry.pos);
             buf.writeBoolean(entry.working);
         }
@@ -29,7 +30,7 @@ public record CircuitOutlinePacket(boolean clearAll, List<Entry> entries) {
 
     public static CircuitOutlinePacket decode(FriendlyByteBuf buf) {
         boolean clearAll = buf.readBoolean();
-        int n = buf.readVarInt();
+        int n = PacketLimits.readCount(buf, PacketLimits.MAX_OUTLINE_MARKS);
         List<Entry> entries = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             entries.add(new Entry(buf.readBlockPos(), buf.readBoolean()));

@@ -28,13 +28,23 @@ public final class ModeService {
 
     /** Minimum game ticks between successful mode changes per player. */
     private static final int DEBOUNCE_TICKS = 4;
-    private static final Map<UUID, Long> LAST_CHANGE_GAME_TIME = new ConcurrentHashMap<>();
+    private static final int POWER_CACHE_TTL = 20;
+    private static final TickGate CHANGE_GATE = new TickGate(DEBOUNCE_TICKS);
+    private static final Map<CacheKey, CacheVal> MODE_POWER_CACHE = new ConcurrentHashMap<>();
 
     private ModeService() {
     }
 
     public static boolean hasModePower(Player player) {
-        return ApoliResources.hasPower(player, MODE_POWER);
+        CacheKey key = new CacheKey(player.getUUID(), player.level().isClientSide);
+        long now = player.level().getGameTime();
+        CacheVal cached = MODE_POWER_CACHE.get(key);
+        if (cached != null && now - cached.at <= POWER_CACHE_TTL) {
+            return cached.has;
+        }
+        boolean has = ApoliResources.hasPower(player, MODE_POWER);
+        MODE_POWER_CACHE.put(key, new CacheVal(has, now));
+        return has;
     }
 
     /**
@@ -71,15 +81,15 @@ public final class ModeService {
         }
 
         long gameTime = player.level().getGameTime();
-        Long last = LAST_CHANGE_GAME_TIME.get(player.getUUID());
-        if (last != null && gameTime - last < DEBOUNCE_TICKS) {
+        UUID id = player.getUUID();
+        if (CHANGE_GATE.blocked(id, gameTime)) {
             return false;
         }
 
         if (!ApoliResources.setValue(player, MODE_POWER, mode.index())) {
             return false;
         }
-        LAST_CHANGE_GAME_TIME.put(player.getUUID(), gameTime);
+        CHANGE_GATE.stamp(id, gameTime);
         ApoliResources.sync(player);
         if (current.isPresent() && current.getAsInt() == ResonanceMode.SENSE.index()) {
             ScanOutlineService.stop(player);
@@ -91,7 +101,30 @@ public final class ModeService {
 
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
-        LAST_CHANGE_GAME_TIME.remove(event.getEntity().getUUID());
+        UUID id = event.getEntity().getUUID();
+        CHANGE_GATE.clear(id);
+        invalidatePowerCache(id);
+    }
+
+    @SubscribeEvent
+    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        invalidatePowerCache(event.getEntity().getUUID());
+    }
+
+    @SubscribeEvent
+    public static void onChangeDim(PlayerEvent.PlayerChangedDimensionEvent event) {
+        invalidatePowerCache(event.getEntity().getUUID());
+    }
+
+    private static void invalidatePowerCache(UUID id) {
+        MODE_POWER_CACHE.remove(new CacheKey(id, true));
+        MODE_POWER_CACHE.remove(new CacheKey(id, false));
+    }
+
+    private record CacheKey(UUID id, boolean clientSide) {
+    }
+
+    private record CacheVal(boolean has, long at) {
     }
 
     private static void runFeedback(ServerPlayer player, ResonanceMode mode) {

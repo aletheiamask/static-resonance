@@ -18,9 +18,11 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,7 +31,9 @@ import java.util.Map;
  */
 @Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID, value = Dist.CLIENT)
 public final class CircuitOutlineClient {
-    private static final Map<BlockPos, Boolean> MARKS = new HashMap<>();
+    private static final Map<BlockPos, Mark> MARKS = new HashMap<>();
+    @Nullable
+    private static BlockPos looked;
 
     private CircuitOutlineClient() {
     }
@@ -41,8 +45,18 @@ public final class CircuitOutlineClient {
         }
         MARKS.clear();
         for (CircuitOutlinePacket.Entry entry : packet.entries()) {
-            MARKS.put(entry.pos().immutable(), entry.working());
+            BlockPos pos = entry.pos().immutable();
+            AABB base = new AABB(pos);
+            MARKS.put(pos, new Mark(base.inflate(0.004), base.inflate(0.03), entry.working()));
         }
+    }
+
+    @SubscribeEvent
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
+        looked = lookCircuit(Minecraft.getInstance().player);
     }
 
     @SubscribeEvent
@@ -54,8 +68,6 @@ public final class CircuitOutlineClient {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        LocalPlayer player = mc.player;
-        BlockPos looked = lookCircuit(player);
 
         PoseStack pose = event.getPoseStack();
         Vec3 cam = event.getCamera().getPosition();
@@ -65,9 +77,9 @@ public final class CircuitOutlineClient {
         RenderType type = SeeThroughRender.lines();
         VertexConsumer lines = buffers.getBuffer(type);
         float pulse = 0.70f + 0.30f * (float) Math.sin(System.currentTimeMillis() / 140.0);
-        for (Map.Entry<BlockPos, Boolean> mark : MARKS.entrySet()) {
-            BlockPos pos = mark.getKey();
-            boolean working = mark.getValue();
+        for (Map.Entry<BlockPos, Mark> entry : MARKS.entrySet()) {
+            BlockPos pos = entry.getKey();
+            Mark mark = entry.getValue();
             boolean aim = pos.equals(looked);
             float r;
             float g;
@@ -78,7 +90,7 @@ public final class CircuitOutlineClient {
                 g = 0.62f * pulse;
                 b = 0.12f;
                 a = 1.00f;
-            } else if (working) {
+            } else if (mark.working) {
                 r = 0.90f;
                 g = 0.22f;
                 b = 0.21f;
@@ -89,8 +101,7 @@ public final class CircuitOutlineClient {
                 b = 0.96f;
                 a = 0.75f;
             }
-            AABB box = new AABB(pos).inflate(aim ? 0.03 : 0.004);
-            LevelRenderer.renderLineBox(pose, lines, box, r, g, b, a);
+            LevelRenderer.renderLineBox(pose, lines, aim ? mark.aim : mark.idle, r, g, b, a);
         }
         buffers.endBatch(type);
         pose.popPose();
@@ -115,5 +126,8 @@ public final class CircuitOutlineClient {
             return null;
         }
         return ((BlockHitResult) hit).getBlockPos();
+    }
+
+    private record Mark(AABB idle, AABB aim, boolean working) {
     }
 }

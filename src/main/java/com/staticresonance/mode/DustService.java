@@ -22,8 +22,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +44,8 @@ public final class DustService {
     private static final int ZONE_TICK_INTERVAL = 4;
 
     private static final Map<UUID, DustZone> ZONES = new ConcurrentHashMap<>();
+    private static final BlockParticleOption SAND_DUST =
+            new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState());
 
     private DustService() {
     }
@@ -104,8 +104,7 @@ public final class DustService {
         double y = target.getY() + target.getBbHeight() * 0.5;
         double z = target.getZ();
         double w = Math.max(0.35, target.getBbWidth() * 0.6);
-        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState()),
-                x, y, z, 28, w, 0.5, w, 0.04);
+        level.sendParticles(SAND_DUST, x, y, z, 28, w, 0.5, w, 0.04);
         level.sendParticles(ParticleTypes.CLOUD, x, y, z, 16, w * 0.8, 0.35, w * 0.8, 0.02);
         level.sendParticles(ParticleTypes.CRIT, x, y, z, 10, w * 0.6, 0.3, w * 0.6, 0.01);
         level.playSound(null, target.blockPosition(), SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.0f, 0.7f);
@@ -134,8 +133,7 @@ public final class DustService {
 
         ServerLevel level = player.serverLevel();
         level.sendParticles(ParticleTypes.CLOUD, at.x, at.y + 1.0, at.z, 24, 1.4, 0.6, 1.4, 0.02);
-        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState()),
-                at.x, at.y + 1.0, at.z, 40, 1.8, 0.7, 1.8, 0.05);
+        level.sendParticles(SAND_DUST, at.x, at.y + 1.0, at.z, 40, 1.8, 0.7, 1.8, 0.05);
         level.playSound(null, focus.blockPosition(), SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.0f, 0.7f);
         level.playSound(null, focus.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.35f, 0.6f);
         ActionBars.show(player, Component.translatable("ui.static_resonance.dust_zone_placed"));
@@ -152,16 +150,15 @@ public final class DustService {
             return;
         }
         long now = server.overworld().getGameTime();
-        List<UUID> ids = new ArrayList<>(ZONES.keySet());
-        for (UUID id : ids) {
+        for (UUID id : ZONES.keySet()) {
             DustZone zone = ZONES.get(id);
             if (zone == null) {
                 continue;
             }
-            ServerPlayer owner = server.getPlayerList().getPlayer(id);
             ServerLevel level = server.getLevel(zone.dimension);
             if (level == null || now >= zone.expireAt) {
                 ZONES.remove(id);
+                ServerPlayer owner = server.getPlayerList().getPlayer(id);
                 if (owner != null) {
                     ActionBars.show(owner, Component.translatable("ui.static_resonance.dust_zone_end"));
                 }
@@ -170,7 +167,7 @@ public final class DustService {
             if (now % ZONE_TICK_INTERVAL != 0) {
                 continue;
             }
-            tickZone(owner, level, zone);
+            tickZone(server.getPlayerList().getPlayer(id), level, zone);
         }
     }
 
@@ -180,11 +177,11 @@ public final class DustService {
     }
 
     private static void tickZone(ServerPlayer owner, ServerLevel level, DustZone zone) {
-        Vec3 pos = new Vec3(zone.x, zone.y, zone.z);
         double r = ZONE_RADIUS;
-        AABB box = new AABB(pos.x - r, pos.y - 1.0, pos.z - r, pos.x + r, pos.y + 3.0, pos.z + r);
+        AABB box = new AABB(zone.x - r, zone.y - 1.0, zone.z - r, zone.x + r, zone.y + 3.0, zone.z + r);
+        double rSq = r * r;
         for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, box, e ->
-                e.isAlive() && e.distanceToSqr(pos) <= r * r)) {
+                e.isAlive() && e.distanceToSqr(zone.x, zone.y, zone.z) <= rSq)) {
             if (owner != null && AllyService.isProtected(owner, living)) {
                 continue;
             }
@@ -193,9 +190,8 @@ public final class DustService {
             }
             living.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, BLIND_REFRESH_TICKS, 0, false, true, true));
         }
-        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState()),
-                pos.x, pos.y + 1.0, pos.z, 10, 1.6, 0.5, 1.6, 0.02);
-        level.sendParticles(ParticleTypes.CLOUD, pos.x, pos.y + 1.1, pos.z, 6, 1.4, 0.4, 1.4, 0.01);
+        level.sendParticles(SAND_DUST, zone.x, zone.y + 1.0, zone.z, 10, 1.6, 0.5, 1.6, 0.02);
+        level.sendParticles(ParticleTypes.CLOUD, zone.x, zone.y + 1.1, zone.z, 6, 1.4, 0.4, 1.4, 0.01);
     }
 
     private static final class DustZone {

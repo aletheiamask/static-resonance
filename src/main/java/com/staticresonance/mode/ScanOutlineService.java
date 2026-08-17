@@ -2,6 +2,7 @@ package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.network.ModNetwork;
+import com.staticresonance.network.PacketLimits;
 import com.staticresonance.network.ScanOutlinePacket;
 import net.minecraft.core.Holder;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
@@ -17,13 +18,16 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.network.PacketDistributor;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +53,8 @@ public final class ScanOutlineService {
     public static final int SCAN_RADIUS = 32;
 
     private static final double MIN_DISTANCE = 0.5;
+    private static final int MAX_MARKS = PacketLimits.MAX_OUTLINE_MARKS;
+    private static final int PRUNE_INTERVAL = 20;
 
     private static final Map<UUID, Set<UUID>> MARKED = new ConcurrentHashMap<>();
 
@@ -99,8 +105,9 @@ public final class ScanOutlineService {
     }
 
     public static void pulse(ServerPlayer scanner) {
-        Set<UUID> marked = MARKED.computeIfAbsent(scanner.getUUID(), id -> new HashSet<>());
+        Set<UUID> marked = MARKED.computeIfAbsent(scanner.getUUID(), id -> new LinkedHashSet<>());
         ServerLevel level = scanner.serverLevel();
+        pruneDead(level, marked);
         Vec3 pos = scanner.position();
         int filter = getFilter(scanner);
         double r = SCAN_RADIUS;
@@ -108,26 +115,22 @@ public final class ScanOutlineService {
         double maxSq = r * r;
         AABB box = new AABB(pos.x - r, pos.y - r, pos.z - r, pos.x + r, pos.y + r, pos.z + r);
 
-        List<UUID> seen = new ArrayList<>();
-        for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, box, e ->
-                e.isAlive()
-                        && e != scanner
-                        && !(e instanceof ArmorStand)
-                        && !e.isSpectator()
-                        && matchesFilter(e, filter)
-                        && e.distanceToSqr(pos) >= minSq
-                        && e.distanceToSqr(pos) <= maxSq)) {
+        for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, box, e -> {
+            if (!e.isAlive() || e == scanner || e instanceof ArmorStand || e.isSpectator()
+                    || !matchesFilter(e, filter)) {
+                return false;
+            }
+            double distSq = e.distanceToSqr(pos);
+            return distSq >= minSq && distSq <= maxSq;
+        })) {
             boolean first = marked.add(living.getUUID());
-            seen.add(living.getUUID());
             if (first && living instanceof ServerPlayer pinged) {
                 pingScanner(scanner, pinged);
             }
         }
-        if (seen.isEmpty()) {
-            return;
-        }
+        evictOldest(marked);
         ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> scanner),
-                new ScanOutlinePacket(false, seen));
+                new ScanOutlinePacket(true, new ArrayList<>(marked)));
     }
 
     /** Legacy single-target mark used only if a player is the command source. */
@@ -135,10 +138,11 @@ public final class ScanOutlineService {
         if (scanner == null || target == null || scanner == target) {
             return;
         }
-        Set<UUID> marked = MARKED.computeIfAbsent(scanner.getUUID(), id -> new HashSet<>());
+        Set<UUID> marked = MARKED.computeIfAbsent(scanner.getUUID(), id -> new LinkedHashSet<>());
         if (!marked.add(target.getUUID())) {
             return;
         }
+        evictOldest(marked);
         if (target instanceof ServerPlayer seen) {
             pingScanner(scanner, seen);
         }
@@ -188,6 +192,46 @@ public final class ScanOutlineService {
         MARKED.remove(scanner.getUUID());
         ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> scanner),
                 new ScanOutlinePacket(true, List.of()));
+    }
+
+    @SubscribeEvent
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || MARKED.isEmpty()) {
+            return;
+        }
+        var server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null || server.overworld().getGameTime() % PRUNE_INTERVAL != 0L) {
+            return;
+        }
+        for (UUID scannerId : MARKED.keySet()) {
+            ServerPlayer player = server.getPlayerList().getPlayer(scannerId);
+            if (player == null) {
+                MARKED.remove(scannerId);
+                continue;
+            }
+            pruneDead(player.serverLevel(), MARKED.get(scannerId));
+        }
+    }
+
+    private static void pruneDead(ServerLevel level, Set<UUID> marked) {
+        if (marked == null || marked.isEmpty()) {
+            return;
+        }
+        marked.removeIf(id -> {
+            Entity entity = level.getEntity(id);
+            return entity != null && !entity.isAlive();
+        });
+    }
+
+    private static void evictOldest(Set<UUID> marked) {
+        while (marked.size() > MAX_MARKS) {
+            Iterator<UUID> it = marked.iterator();
+            if (!it.hasNext()) {
+                return;
+            }
+            it.next();
+            it.remove();
+        }
     }
 
     @SubscribeEvent

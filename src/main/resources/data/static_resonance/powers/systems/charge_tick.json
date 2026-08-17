@@ -22,18 +22,9 @@
       ]
     },
     "if_action": {
-      "type": "origins:and",
-      "actions": [
-        {
-          "type": "origins:change_resource",
-          "resource": "static_resonance:systems/charge",
-          "change": -3
-        },
-        {
-          "type": "origins:execute_command",
-          "command": "particle minecraft:bubble ~ ~1 ~ 0.3 0.4 0.3 0.02 4 force @a[distance=..24]"
-        }
-      ]
+      "type": "origins:change_resource",
+      "resource": "static_resonance:systems/charge",
+      "change": -3
     },
     "else_action": {
       "type": "origins:if_else",
