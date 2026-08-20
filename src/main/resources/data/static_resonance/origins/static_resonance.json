@@ -2,7 +2,6 @@
   "powers": [
     "static_resonance:systems/charge",
     "static_resonance:systems/mode",
-    "static_resonance:systems/charge_tick",
     "static_resonance:systems/scan_active",
     "static_resonance:systems/scan_radius",
     "static_resonance:systems/scan_abort",
@@ -22,5 +21,5 @@
   "order": 8,
   "impact": 2,
   "name": "Static Resonance",
-  "description": "You shape electrostatic vibration through five modes. Hold R for the skill wheel (tap R to cycle). Left-click selects a mode; F casts. Faraday Cage is Aegis. Charge is 0–100. By Pipothai."
+  "description": "You shape electrostatic vibration through five modes. Hold R for the skill wheel (tap R to cycle). Left-click selects a mode; F casts. Faraday Cage is Aegis. You climb walls. Charge is 0–100. By Pipothai."
 }

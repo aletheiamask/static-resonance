@@ -19,7 +19,7 @@ public enum RadialWedge {
     SENSE(ResonanceMode.SENSE, 18f, 90f, RadialWedge.Anchor.BOTTOM),
     /** Bottom-left — Dust */
     DUST(ResonanceMode.DUST, 90f, 162f, RadialWedge.Anchor.LEFT),
-    /** Upper-left — Circuit / Redstone Sight */
+    /** Upper-left — Circuit / Circuit Flip */
     CIRCUIT(ResonanceMode.CIRCUIT, 162f, -126f, RadialWedge.Anchor.TOP_LEFT);
 
     public enum Anchor {

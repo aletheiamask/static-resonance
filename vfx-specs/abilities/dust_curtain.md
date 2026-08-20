@@ -3,35 +3,41 @@
 | Field | Value |
 |-------|-------|
 | Mode | Dust (0) |
-| Trigger | Primary active while mode==0 |
-| Charge cost | 20 |
-| Cooldown | Primary shared ~1s (+ ability feel) |
-| Duration | ~0.8–1.2s cloud presence; status 3–4s |
-| Radius | ~7 blocks |
-| Hit | AoE status on `#static_resonance:affectable` |
+| Trigger | **F** while mode==0 (`DustService`) |
+| Styles | Burst (0) · Zone (1) — radial sub-panel |
+| Burst cost | **5** on look-target hit; miss spends 0 |
+| Zone cost | **10** to plant a smoke zone |
+| Zone | Radius **6**, lifetime **200** ticks (snapshotted) |
+| Burst hit | Blindness 4s + Slowness II 3s on the looked-at living entity |
 | Damage | None (control) |
-| Phase 1 stand-in | `functions/dust/curtain.mcfunction` particles sand/cloud/crit |
+| Stand-in | Java `DustService` particles (sand block dust, cloud, crit) |
 
-## Timeline
+## Timeline (burst)
 
 | t | Event |
 |--:|-------|
-| 0.00 | Spawn low dust ring at feet |
-| 0.10 | Expand charged grit sphere |
-| 0.25 | Peak density; apply blindness/slowness window |
-| 0.60 | Density falls; residual floaters |
-| 1.00 | Cleanup emitters |
+| 0.00 | Spend 5 if look-hit |
+| 0.00 | Sand/cloud/crit at target |
+| 0–4s | Blindness / slowness window |
+
+## Timeline (zone)
+
+| t | Event |
+|--:|-------|
+| 0.00 | Spend 10 · plant zone at looked-at living |
+| while live | Smoke in radius 6 |
+| 10s | Zone expires |
 
 ## Emitters (future)
 
-1. **Ground ring** — disc, brown dust, lifetime 0.6s  
-2. **Volume cloud** — sphere r=2→5, noise turbulence  
-3. **Charge flecks** — yellow sparkles sparse  
+1. **Ground ring** — disc, brown dust, lifetime 0.6s
+2. **Volume cloud** — sphere, noise turbulence
+3. **Charge flecks** — yellow sparkles sparse
 
 ## Sound
 
-- Sand break + dry whoosh (phase 1: sand.break + phantom.flap)
+Sand break + phantom flap (burst).
 
 ## Cleanup
 
-Despawn all emitters; leave no permanent blocks.
+No permanent blocks. Zone map entry removed on expiry / logout.

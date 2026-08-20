@@ -1,6 +1,8 @@
 package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
+import com.staticresonance.config.SrConfig;
+import com.staticresonance.logic.ExpireClock;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -37,6 +39,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
+import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -56,18 +59,10 @@ public final class FaradayService {
 
     public static final ResourceLocation EMERGENCY_POWER =
             new ResourceLocation(StaticResonanceMod.MOD_ID, "systems/faraday_emergency");
-    public static final int MANUAL_COST = 50;
-
-    public static final double REPEL_RADIUS = 10.0;
-    public static final double HARD_RADIUS = 5.0;
-    public static final double MID_RADIUS = 7.0;
     public static final double HARD_PUSH = 0.45;
     public static final double MID_PUSH = 0.12;
     public static final double CATCH_RADIUS = 4.8;
     public static final double HOLD_RADIUS = 10.0;
-    public static final int HOLD_TICKS = 35;
-    /** Incoming hit that would leave health + absorption below this raises emergency. */
-    public static final float EMERGENCY_MIN_HEALTH = 2.0f;
 
     private static final TagKey<EntityType<?>> PROJECTILES = TagKey.create(
             Registries.ENTITY_TYPE, new ResourceLocation(StaticResonanceMod.MOD_ID, "projectiles"));
@@ -79,32 +74,60 @@ public final class FaradayService {
 
     private static final Set<UUID> ACTIVE_CAGES = ConcurrentHashMap.newKeySet();
     private static final Set<UUID> COOLDOWNS = ConcurrentHashMap.newKeySet();
+    private static final Map<UUID, Long> CAGE_EXPIRE_AT = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> CD_EXPIRE_AT = new ConcurrentHashMap<>();
     private static final Map<UUID, HeldShot> HELD = new ConcurrentHashMap<>();
     private static final Map<EntityType<?>, Boolean> GUNSHOT_TYPES = new ConcurrentHashMap<>();
     private static final double STILL_MOTION_SQ = 1.0e-8;
+    private static final double HARD_WALL_EPS = 0.08;
+    private static final double HARD_PUSH_EPS_SQ = 1.0e-6;
     private static final int CLOCK_INTERVAL = 5;
-    private static final int CAGE_TICK_STEP = 5;
     private static final int REPEL_SLOW_TICKS = 50;
     private static final int REPEL_SLOW_REFRESH = 20;
     private static final int CAGE_RESIST_TICKS = 120;
     private static final int CAGE_RESIST_AMP = 4;
+    private static final int EMERGENCY_CACHE_TTL = 20;
+    private static final Map<UUID, EmergVal> EMERGENCY_CACHE = new ConcurrentHashMap<>();
+
+    private static UUID blockCacheId;
+    private static long blockCacheTick = Long.MIN_VALUE;
+    private static boolean blockCacheResult;
 
     private FaradayService() {
     }
 
     public static boolean isEmergencyEnabled(Player player) {
-        return ApoliResources.getValue(player, EMERGENCY_POWER).orElse(1) != 0;
+        if (!player.level().isClientSide() && !ModeService.hasModePower(player)) {
+            return false;
+        }
+        UUID id = player.getUUID();
+        long now = player.level().getGameTime();
+        EmergVal cached = EMERGENCY_CACHE.get(id);
+        if (cached != null && now - cached.at <= EMERGENCY_CACHE_TTL) {
+            return cached.on;
+        }
+        boolean on = ApoliResources.getValue(player, EMERGENCY_POWER).orElse(1) != 0;
+        EMERGENCY_CACHE.put(id, new EmergVal(on, now));
+        return on;
     }
 
     public static boolean canActivateCage(Player player) {
-        ensureObjectives(player);
-        Scoreboard board = player.getScoreboard();
-        return getScore(board, player, OBJ_FARADAY) <= 0
-                && getScore(board, player, OBJ_FARADAY_CD) <= 0;
+        if (ACTIVE_CAGES.contains(player.getUUID())) {
+            return false;
+        }
+        UUID id = player.getUUID();
+        if (!COOLDOWNS.contains(id)) {
+            return true;
+        }
+        Long expire = CD_EXPIRE_AT.get(id);
+        if (expire == null) {
+            return getScore(player.getScoreboard(), player, OBJ_FARADAY_CD) <= 0;
+        }
+        return expire <= player.level().getGameTime();
     }
 
     public static boolean isCageActive(Player player) {
-        return getScore(player.getScoreboard(), player, OBJ_FARADAY) > 0;
+        return ACTIVE_CAGES.contains(player.getUUID());
     }
 
     public static boolean toggleEmergency(ServerPlayer player) {
@@ -112,11 +135,12 @@ public final class FaradayService {
         int next = cur == 0 ? 1 : 0;
         ApoliResources.setValue(player, EMERGENCY_POWER, next);
         ApoliResources.sync(player);
+        EMERGENCY_CACHE.put(player.getUUID(), new EmergVal(next != 0, player.level().getGameTime()));
         return next != 0;
     }
 
     /**
-     * Manual G toggles the cage (raise costs {@link #MANUAL_COST}; lower is free).
+     * Manual G toggles the cage (raise costs config manualCost; lower is free).
      * Emergency never spends and never dismisses an existing cage.
      */
     public static boolean tryActivate(ServerPlayer player, ActivateReason reason) {
@@ -135,16 +159,16 @@ public final class FaradayService {
             if (ModeService.getMode(player) != ResonanceMode.OVERCHARGE) {
                 return false;
             }
+            int cost = SrConfig.COMMON.faraday.manualCost.get();
             int preCharge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
-            if (preCharge < MANUAL_COST) {
+            if (preCharge < cost) {
                 ActionBars.show(player, Component.translatable("ui.static_resonance.charge_too_low"));
                 return false;
             }
-            int next = preCharge - MANUAL_COST;
+            int next = preCharge - cost;
             ApoliResources.setValue(player, ModeService.CHARGE_POWER, next);
             ApoliResources.sync(player);
-            runFunction(player, "function static_resonance:faraday/activate");
-            ACTIVE_CAGES.add(player.getUUID());
+            armCage(player);
             showCountdown(player);
             return true;
         }
@@ -152,9 +176,8 @@ public final class FaradayService {
         if (!isEmergencyEnabled(player) || isCageActive(player)) {
             return false;
         }
-        runFunction(player, "function static_resonance:faraday/activate");
+        armCage(player);
         runFunction(player, "function static_resonance:faraday/emergency_fx");
-        ACTIVE_CAGES.add(player.getUUID());
         return true;
     }
 
@@ -164,9 +187,32 @@ public final class FaradayService {
         }
         releaseNear(player);
         runFunction(player, "function static_resonance:faraday/deactivate");
-        ACTIVE_CAGES.remove(player.getUUID());
-        COOLDOWNS.add(player.getUUID());
+        ensureObjectives(player);
+        UUID id = player.getUUID();
+        CAGE_EXPIRE_AT.remove(id);
+        ACTIVE_CAGES.remove(id);
+        setScore(player, OBJ_FARADAY, 0);
+        int cooldown = SrConfig.COMMON.faraday.cooldownTicks.get();
+        if (cooldown > 0) {
+            CD_EXPIRE_AT.put(id, player.level().getGameTime() + cooldown);
+            setScore(player, OBJ_FARADAY_CD, cooldown);
+            COOLDOWNS.add(id);
+        } else {
+            CD_EXPIRE_AT.remove(id);
+            setScore(player, OBJ_FARADAY_CD, 0);
+            COOLDOWNS.remove(id);
+        }
         return true;
+    }
+
+    private static void armCage(ServerPlayer player) {
+        runFunction(player, "function static_resonance:faraday/activate");
+        ensureObjectives(player);
+        int duration = SrConfig.COMMON.faraday.durationTicks.get();
+        UUID id = player.getUUID();
+        CAGE_EXPIRE_AT.put(id, player.level().getGameTime() + duration);
+        setScore(player, OBJ_FARADAY, duration);
+        ACTIVE_CAGES.add(id);
     }
 
     @SubscribeEvent
@@ -180,16 +226,18 @@ public final class FaradayService {
         }
         tickHeld(server.overworld());
         long now = server.overworld().getGameTime();
+        tickCageExpiry(server, now);
         if (now % CLOCK_INTERVAL == 0L) {
-            tickCageClock(server);
+            tickCageFx(server);
         }
         if (ACTIVE_CAGES.isEmpty()) {
             return;
         }
         for (UUID id : ACTIVE_CAGES) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || !isCageActive(player)) {
+            if (player == null) {
                 ACTIVE_CAGES.remove(id);
+                CAGE_EXPIRE_AT.remove(id);
                 continue;
             }
             if (now % 2 == 0) {
@@ -202,7 +250,8 @@ public final class FaradayService {
     }
 
     private static void showCountdown(ServerPlayer player) {
-        int ticks = getScore(player.getScoreboard(), player, OBJ_FARADAY);
+        int ticks = remainingTicks(CAGE_EXPIRE_AT, player.getUUID(), player, OBJ_FARADAY,
+                player.level().getGameTime());
         int sec = Math.max(0, ticks / 20);
         player.displayClientMessage(Component.translatable("ui.static_resonance.faraday_status", sec), true);
     }
@@ -219,7 +268,7 @@ public final class FaradayService {
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onAttack(LivingAttackEvent event) {
-        if (idleCombat()) {
+        if (idleCombat() || event.isCanceled() || event.getEntity().level().isClientSide()) {
             return;
         }
         if (shouldBlock(event.getSource().getDirectEntity())) {
@@ -237,6 +286,7 @@ public final class FaradayService {
         }
     }
 
+    /** Emergency floor. Do not idle-gate on cages — the first lethal hit must still raise. */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onDamage(LivingDamageEvent event) {
         if (event.isCanceled() || event.getEntity().level().isClientSide()) {
@@ -248,7 +298,7 @@ public final class FaradayService {
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onDeath(LivingDeathEvent event) {
-        if (event.isCanceled() || event.getEntity().level().isClientSide()) {
+        if (event.getEntity().level().isClientSide()) {
             return;
         }
         if (!(event.getEntity() instanceof ServerPlayer player)) {
@@ -260,7 +310,7 @@ public final class FaradayService {
         if (!isCageActive(player) && !tryActivate(player, ActivateReason.EMERGENCY)) {
             return;
         }
-        player.setHealth(EMERGENCY_MIN_HEALTH);
+        player.setHealth(emergencyMinHealth());
         event.setCanceled(true);
     }
 
@@ -272,7 +322,7 @@ public final class FaradayService {
         if (!ModeService.hasModePower(player) || !isEmergencyEnabled(player)) {
             return false;
         }
-        if (player.getHealth() - incoming >= EMERGENCY_MIN_HEALTH) {
+        if (player.getHealth() - incoming >= emergencyMinHealth()) {
             return false;
         }
         if (!isCageActive(player)) {
@@ -285,7 +335,7 @@ public final class FaradayService {
             cancel.run();
             return true;
         }
-        float maxDamage = Math.max(0.0f, player.getHealth() - EMERGENCY_MIN_HEALTH);
+        float maxDamage = Math.max(0.0f, player.getHealth() - emergencyMinHealth());
         if (incoming > maxDamage) {
             setAmount.accept(maxDamage);
         }
@@ -298,6 +348,9 @@ public final class FaradayService {
             UUID id = player.getUUID();
             ACTIVE_CAGES.remove(id);
             COOLDOWNS.remove(id);
+            CAGE_EXPIRE_AT.remove(id);
+            CD_EXPIRE_AT.remove(id);
+            EMERGENCY_CACHE.remove(id);
         }
     }
 
@@ -306,45 +359,36 @@ public final class FaradayService {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        if (isCageActive(player)) {
-            ACTIVE_CAGES.add(player.getUUID());
+        long now = player.level().getGameTime();
+        UUID id = player.getUUID();
+        int left = getScore(player.getScoreboard(), player, OBJ_FARADAY);
+        if (left > 0) {
+            CAGE_EXPIRE_AT.put(id, now + left);
+            ACTIVE_CAGES.add(id);
         }
-        if (getScore(player.getScoreboard(), player, OBJ_FARADAY_CD) > 0) {
-            COOLDOWNS.add(player.getUUID());
+        int cd = getScore(player.getScoreboard(), player, OBJ_FARADAY_CD);
+        if (cd > 0) {
+            CD_EXPIRE_AT.put(id, now + cd);
+            COOLDOWNS.add(id);
         }
     }
 
+    /** Keep attack/hurt callers; TACZ bullets may skip {@code ProjectileImpactEvent}. */
     private static boolean shouldBlock(Entity entity) {
         if (entity == null || !isInterceptable(entity)) {
             return false;
         }
-        if (HELD.containsKey(entity.getUUID())) {
-            return true;
+        UUID id = entity.getUUID();
+        long now = entity.level().getGameTime();
+        if (id.equals(blockCacheId) && now == blockCacheTick) {
+            return blockCacheResult;
         }
-        if (!axisNearAnyCage(entity)) {
-            return false;
-        }
-        return nearestCage(entity) != null;
-    }
-
-    private static boolean axisNearAnyCage(Entity entity) {
-        var server = ServerLifecycleHooks.getCurrentServer();
-        if (server == null) {
-            return false;
-        }
-        for (UUID id : ACTIVE_CAGES) {
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || player.level() != entity.level() || !isCageActive(player)) {
-                continue;
-            }
-            if (Math.abs(player.getX() - entity.getX()) > CATCH_RADIUS
-                    || Math.abs(player.getY() - entity.getY()) > CATCH_RADIUS
-                    || Math.abs(player.getZ() - entity.getZ()) > CATCH_RADIUS) {
-                continue;
-            }
-            return true;
-        }
-        return false;
+        boolean result = HELD.containsKey(id)
+                || (!ACTIVE_CAGES.isEmpty() && nearestCage(entity) != null);
+        blockCacheId = id;
+        blockCacheTick = now;
+        blockCacheResult = result;
+        return result;
     }
 
     private static void catchEntity(ServerLevel level, Entity entity) {
@@ -358,7 +402,8 @@ public final class FaradayService {
             entity.discard();
             return;
         }
-        HELD.put(entity.getUUID(), new HeldShot(entity.getUUID(), level.dimension(), HOLD_TICKS));
+        HELD.put(entity.getUUID(), new HeldShot(entity.getUUID(), level.dimension(),
+                SrConfig.COMMON.faraday.holdTicks.get(), entity));
         entity.setNoGravity(true);
         freeze(entity);
         spawnCatchSparks(level, entity);
@@ -376,13 +421,15 @@ public final class FaradayService {
                 it.remove();
                 continue;
             }
-            ServerPlayer cage = nearestCage(entity);
-            if (cage == null || entity.distanceToSqr(cage) > HOLD_RADIUS * HOLD_RADIUS) {
-                release(entity);
-                it.remove();
-                continue;
-            }
             held.ticksLeft -= 1;
+            if (held.ticksLeft % 2 == 0 || held.ticksLeft <= 0) {
+                ServerPlayer cage = nearestCage(entity);
+                if (cage == null || entity.distanceToSqr(cage) > HOLD_RADIUS * HOLD_RADIUS) {
+                    release(entity);
+                    it.remove();
+                    continue;
+                }
+            }
             freeze(entity);
             if (held.ticksLeft % 5 == 0 && entity.level() instanceof ServerLevel sl) {
                 sl.sendParticles(ParticleTypes.ELECTRIC_SPARK,
@@ -478,11 +525,19 @@ public final class FaradayService {
         if (server == null) {
             return null;
         }
+        int ecx = entity.getBlockX() >> 4;
+        int ecy = entity.getBlockY() >> 4;
+        int ecz = entity.getBlockZ() >> 4;
         ServerPlayer best = null;
         double bestDist = CATCH_RADIUS * CATCH_RADIUS;
         for (UUID id : ACTIVE_CAGES) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || player.level() != entity.level() || !isCageActive(player)) {
+            if (player == null || player.level() != entity.level()) {
+                continue;
+            }
+            if (Math.abs((player.getBlockX() >> 4) - ecx) >= 2
+                    || Math.abs((player.getBlockY() >> 4) - ecy) >= 2
+                    || Math.abs((player.getBlockZ() >> 4) - ecz) >= 2) {
                 continue;
             }
             double d = player.distanceToSqr(entity);
@@ -495,28 +550,36 @@ public final class FaradayService {
     }
 
     private static Entity findEntity(MinecraftServer server, HeldShot held) {
+        if (held.cached != null && held.cached.isAlive() && !held.cached.isRemoved()) {
+            return held.cached;
+        }
         ServerLevel level = server.getLevel(held.dim);
-        return level == null ? null : level.getEntity(held.id);
+        Entity found = level == null ? null : level.getEntity(held.id);
+        held.cached = found;
+        return found;
     }
 
     private static void tickAura(ServerPlayer player, long now) {
         ServerLevel level = player.serverLevel();
         Vec3 pos = player.position();
-        double r = REPEL_RADIUS;
-        AABB box = new AABB(
+        double r = SrConfig.COMMON.faraday.repelRadius.get();
+        boolean showVfx = now % REPEL_VFX_INTERVAL == 0;
+        double catchSq = CATCH_RADIUS * CATCH_RADIUS;
+        AABB catchBox = new AABB(
+                pos.x - CATCH_RADIUS, pos.y - 1.5, pos.z - CATCH_RADIUS,
+                pos.x + CATCH_RADIUS, pos.y + 2.5, pos.z + CATCH_RADIUS
+        );
+        for (Entity entity : level.getEntities(player, catchBox, FaradayService::isInterceptable)) {
+            if (entity.distanceToSqr(pos) <= catchSq) {
+                catchEntity(level, entity);
+            }
+        }
+        AABB repelBox = new AABB(
                 pos.x - r, pos.y - 1.5, pos.z - r,
                 pos.x + r, pos.y + 2.5, pos.z + r
         );
-        boolean showVfx = now % REPEL_VFX_INTERVAL == 0;
-        double catchSq = CATCH_RADIUS * CATCH_RADIUS;
-        for (Entity entity : level.getEntities(player, box, e -> e != player)) {
-            if (isInterceptable(entity) && entity.distanceToSqr(pos) <= catchSq) {
-                catchEntity(level, entity);
-                continue;
-            }
-            if (!(entity instanceof LivingEntity living) || !living.isAlive()) {
-                continue;
-            }
+        for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, repelBox, e ->
+                e.isAlive() && e != player)) {
             double dx = living.getX() - pos.x;
             double dz = living.getZ() - pos.z;
             double distSq = dx * dx + dz * dz;
@@ -531,12 +594,18 @@ public final class FaradayService {
                 nz = 0.0;
             }
 
-            if (dist <= HARD_RADIUS) {
-                double wall = HARD_RADIUS + 0.05;
-                living.setPos(pos.x + nx * wall, living.getY(), pos.z + nz * wall);
+            double hardR = SrConfig.COMMON.faraday.hardRadius.get();
+            if (dist <= hardR) {
+                double wall = hardR + 0.05;
+                if (Math.abs(dist - wall) > HARD_WALL_EPS) {
+                    living.setPos(pos.x + nx * wall, living.getY(), pos.z + nz * wall);
+                }
                 Vec3 m = living.getDeltaMovement();
-                living.setDeltaMovement(nx * HARD_PUSH, m.y, nz * HARD_PUSH);
-                living.hurtMarked = true;
+                Vec3 push = new Vec3(nx * HARD_PUSH, m.y, nz * HARD_PUSH);
+                if (m.distanceToSqr(push) > HARD_PUSH_EPS_SQ) {
+                    living.setDeltaMovement(push);
+                    living.hurtMarked = true;
+                }
                 if (showVfx) {
                     level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                             living.getX(), living.getY() + living.getBbHeight() * 0.5, living.getZ(),
@@ -545,7 +614,7 @@ public final class FaradayService {
                 continue;
             }
 
-            if (dist <= MID_RADIUS) {
+            if (dist <= SrConfig.COMMON.faraday.midRadius.get()) {
                 refreshRepelSlow(living, 2);
                 Vec3 m = living.getDeltaMovement();
                 living.setDeltaMovement(m.x + nx * MID_PUSH, m.y, m.z + nz * MID_PUSH);
@@ -586,25 +655,26 @@ public final class FaradayService {
         SrScoreboards.ensureAll(player.getScoreboard());
     }
 
-    private static void tickCageClock(MinecraftServer server) {
+    /** Expire maps are the clock; leftover scores are a HUD/datapack mirror. */
+    private static void tickCageExpiry(MinecraftServer server, long now) {
         if (!COOLDOWNS.isEmpty()) {
             for (UUID id : COOLDOWNS) {
                 ServerPlayer player = server.getPlayerList().getPlayer(id);
                 if (player == null) {
                     COOLDOWNS.remove(id);
+                    CD_EXPIRE_AT.remove(id);
                     continue;
                 }
                 if (isCageActive(player)) {
                     continue;
                 }
-                int cd = getScore(player.getScoreboard(), player, OBJ_FARADAY_CD);
-                if (cd <= 0) {
+                int remaining = remainingTicks(CD_EXPIRE_AT, id, player, OBJ_FARADAY_CD, now);
+                if (remaining <= 0) {
+                    setScore(player, OBJ_FARADAY_CD, 0);
+                    CD_EXPIRE_AT.remove(id);
                     COOLDOWNS.remove(id);
-                    continue;
-                }
-                setScore(player, OBJ_FARADAY_CD, Math.max(0, cd - CAGE_TICK_STEP));
-                if (cd - CAGE_TICK_STEP <= 0) {
-                    COOLDOWNS.remove(id);
+                } else if (now % HUD_INTERVAL == 0L) {
+                    setScore(player, OBJ_FARADAY_CD, remaining);
                 }
             }
         }
@@ -613,27 +683,59 @@ public final class FaradayService {
         }
         for (UUID id : ACTIVE_CAGES) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || !isCageActive(player)) {
+            if (player == null) {
                 ACTIVE_CAGES.remove(id);
+                CAGE_EXPIRE_AT.remove(id);
                 continue;
             }
-            int left = getScore(player.getScoreboard(), player, OBJ_FARADAY);
-            int next = left - CAGE_TICK_STEP;
-            if (next <= 0) {
+            int remaining = remainingTicks(CAGE_EXPIRE_AT, id, player, OBJ_FARADAY, now);
+            if (remaining <= 0) {
                 tryDeactivate(player);
+            } else if (now % HUD_INTERVAL == 0L) {
+                setScore(player, OBJ_FARADAY, remaining);
+            }
+        }
+    }
+
+    private static int remainingTicks(Map<UUID, Long> expires, UUID id, ServerPlayer player,
+                                      String objective, long now) {
+        Long expire = expires.get(id);
+        if (expire == null) {
+            int left = getScore(player.getScoreboard(), player, objective);
+            if (left <= 0) {
+                return 0;
+            }
+            expires.put(id, now + left);
+            return left;
+        }
+        return ExpireClock.remaining(expire, now);
+    }
+
+    private static void tickCageFx(MinecraftServer server) {
+        if (ACTIVE_CAGES.isEmpty()) {
+            return;
+        }
+        for (UUID id : ACTIVE_CAGES) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
                 continue;
             }
-            setScore(player, OBJ_FARADAY, next);
             refreshCageEffects(player);
             spawnCageSilhouette(player);
         }
     }
 
     private static void refreshCageEffects(ServerPlayer player) {
-        player.addEffect(new MobEffectInstance(
-                MobEffects.DAMAGE_RESISTANCE, CAGE_RESIST_TICKS, CAGE_RESIST_AMP, true, false, true));
-        player.addEffect(new MobEffectInstance(
-                MobEffects.FIRE_RESISTANCE, CAGE_RESIST_TICKS, 0, true, false, true));
+        var resist = player.getEffect(MobEffects.DAMAGE_RESISTANCE);
+        if (resist == null || resist.getAmplifier() < CAGE_RESIST_AMP || resist.getDuration() < 40) {
+            player.addEffect(new MobEffectInstance(
+                    MobEffects.DAMAGE_RESISTANCE, CAGE_RESIST_TICKS, CAGE_RESIST_AMP, true, false, true));
+        }
+        var fire = player.getEffect(MobEffects.FIRE_RESISTANCE);
+        if (fire == null || fire.getDuration() < 40) {
+            player.addEffect(new MobEffectInstance(
+                    MobEffects.FIRE_RESISTANCE, CAGE_RESIST_TICKS, 0, true, false, true));
+        }
     }
 
     private static void spawnCageSilhouette(ServerPlayer player) {
@@ -658,6 +760,10 @@ public final class FaradayService {
         return board.getOrCreatePlayerScore(name, obj).getScore();
     }
 
+    private static float emergencyMinHealth() {
+        return SrConfig.COMMON.faraday.emergencyMinHealth.get().floatValue();
+    }
+
     private static void setScore(ServerPlayer player, String objective, int value) {
         Scoreboard board = player.getScoreboard();
         Objective obj = board.getObjective(objective);
@@ -667,15 +773,21 @@ public final class FaradayService {
         board.getOrCreatePlayerScore(player.getScoreboardName(), obj).setScore(value);
     }
 
+    private record EmergVal(boolean on, long at) {
+    }
+
     private static final class HeldShot {
         final UUID id;
         final ResourceKey<Level> dim;
         int ticksLeft;
+        @Nullable
+        Entity cached;
 
-        HeldShot(UUID id, ResourceKey<Level> dim, int ticksLeft) {
+        HeldShot(UUID id, ResourceKey<Level> dim, int ticksLeft, @Nullable Entity cached) {
             this.id = id;
             this.dim = dim;
             this.ticksLeft = ticksLeft;
+            this.cached = cached;
         }
     }
 }

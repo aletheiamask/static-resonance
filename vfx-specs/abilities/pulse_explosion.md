@@ -1,14 +1,15 @@
 # Ability: Pulse Explosion
 
+**Not shipped.** Design-only. Overcharge / Aegis live cast is Faraday Cage. There is no `powers/mode/pulse_explosion.json` and no `functions/overcharge/pulse.mcfunction`.
+
 | Field | Value |
 |-------|-------|
-| Mode | Overcharge (3) |
-| Trigger | Primary active while mode==3 |
-| Charge cost | 45 (heavy) |
+| Mode | Was Overcharge (3) — **not a live cast** |
+| Trigger | — |
+| Charge cost | 45 (design only) |
 | Radius | ~5.5 blocks |
 | Hit | Magic damage ~8 + knockback-ish + slowness |
 | Self risk | Weakness + hunger brief |
-| Phase 1 stand-in | `functions/overcharge/pulse.mcfunction` |
 
 ## Timeline
 

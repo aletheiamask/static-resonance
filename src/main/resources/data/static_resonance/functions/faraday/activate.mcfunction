@@ -1,6 +1,5 @@
-# Cage ON — called only after FaradayService.tryActivate guards + spend.
+# Cage ON VFX — duration score is set by FaradayService from config.
 # @s = player
-scoreboard players set @s sr_faraday 600
 tag @s add sr_faraday
 
 effect give @s minecraft:resistance 30 4 true

@@ -1,6 +1,7 @@
 package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
+import com.staticresonance.config.SrConfig;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -47,18 +48,9 @@ public final class ControlService {
 
     public static final int STYLE_TARGET = 0;
     public static final int STYLE_FIELD = 1;
-    public static final int FIELD_COST = 40;
-    public static final int TARGET_COST = 15;
-    public static final int FIELD_MAX_RADIUS = 30;
-    public static final int FIELD_DURATION_TICKS = 1200;
     public static final int FIELD_EXPAND_INTERVAL = 5;
-    public static final double MOVE_ABORT_THRESHOLD = 0.12;
-    /** Max lock distance — roughly entity-visible range, not “nearest next to feet”. */
-    public static final double TARGET_RANGE = 64.0;
     /** Half-angle cone (degrees) for “I can see it” soft aim after precise ray miss. */
     private static final double LOOK_CONE_DEG = 40.0;
-
-    private static final int LOCK_EFFECT_TICKS = 100;
     private static final int STATUS_INTERVAL = 20;
     private static final int SWEEP_INTERVAL = 4;
     private static final int REFRESH_WHEN_REMAINING = 20;
@@ -108,16 +100,22 @@ public final class ControlService {
         if (SESSIONS.containsKey(player.getUUID())) {
             return false;
         }
+        int cost = SrConfig.COMMON.control.fieldCost.get();
         int charge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
-        if (charge < FIELD_COST) {
+        if (charge < cost) {
             return false;
         }
-        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - FIELD_COST)) {
+        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - cost)) {
             return false;
         }
 
         Vec3 pos = player.position();
-        SESSIONS.put(player.getUUID(), new FieldSession(pos.x, pos.y, pos.z, player.level().getGameTime(), 0));
+        SESSIONS.put(player.getUUID(), new FieldSession(
+                pos.x, pos.y, pos.z, player.level().getGameTime(), 0,
+                SrConfig.COMMON.control.fieldDurationTicks.get(),
+                SrConfig.COMMON.control.fieldMaxRadius.get(),
+                SrConfig.COMMON.control.moveAbortThreshold.get(),
+                SrConfig.COMMON.control.lockEffectTicks.get()));
         setFieldActiveMirror(player, true);
         ApoliResources.sync(player);
 
@@ -155,7 +153,7 @@ public final class ControlService {
     }
 
     /**
-     * Single-target lock: living entity under the player's look ray → spend {@link #TARGET_COST} → apply.
+     * Single-target lock: living entity under the player's look ray → spend target cost → apply.
      * Atomic authority (Origins must not spend beforehand).
      *
      * @return true if a target was locked and charge spent
@@ -165,7 +163,8 @@ public final class ControlService {
             return false;
         }
         ServerLevel level = player.serverLevel();
-        LivingEntity target = LookTargets.findLookLiving(player, TARGET_RANGE, LOOK_CONE_DEG,
+        LivingEntity target = LookTargets.findLookLiving(player,
+                SrConfig.COMMON.control.targetRange.get(), LOOK_CONE_DEG,
                 e -> isLockable(player, e));
         if (target == null) {
             level.playSound(null, player.blockPosition(), SoundEvents.NOTE_BLOCK_BASS.value(),
@@ -173,19 +172,20 @@ public final class ControlService {
             ActionBars.show(player, Component.translatable("ui.static_resonance.magnetic_lock_miss"));
             return false;
         }
+        int cost = SrConfig.COMMON.control.targetCost.get();
         int charge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
-        if (charge < TARGET_COST) {
+        if (charge < cost) {
             ActionBars.show(player, Component.translatable("ui.static_resonance.charge_too_low"));
             return false;
         }
-        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - TARGET_COST)) {
+        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - cost)) {
             return false;
         }
         ApoliResources.sync(player);
 
         Vec3 pos = player.position();
         // Paid single-target cast: always full VFX (field path uses first-only to avoid spam)
-        applyLock(player, target, level, true, false);
+        applyLock(player, target, level, true, false, SrConfig.COMMON.control.lockEffectTicks.get());
         spawnHeadRing(level, target);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, pos.x, pos.y + 1.0, pos.z, 24, 0.55, 0.55, 0.55, 0.12);
         level.sendParticles(ParticleTypes.WITCH, pos.x, pos.y + 1.0, pos.z, 12, 0.4, 0.4, 0.4, 0.04);
@@ -212,11 +212,16 @@ public final class ControlService {
      */
     public static void applyLock(ServerPlayer viewer, LivingEntity target, ServerLevel level,
                                  boolean pullDown, boolean withVfx) {
+        applyLock(viewer, target, level, pullDown, withVfx, SrConfig.COMMON.control.lockEffectTicks.get());
+    }
+
+    public static void applyLock(ServerPlayer viewer, LivingEntity target, ServerLevel level,
+                                 boolean pullDown, boolean withVfx, int lockTicks) {
         boolean first = !isUnderLock(target);
         if (first) {
             captureHands(target);
         }
-        refreshLockEffects(viewer, target);
+        refreshLockEffects(target, lockTicks);
         if (pullDown) {
             Vec3 m = target.getDeltaMovement();
             target.setDeltaMovement(0, Math.min(m.y, -0.15), 0);
@@ -247,6 +252,9 @@ public final class ControlService {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide()) {
             return;
         }
+        if (HANDS.isEmpty()) {
+            return;
+        }
         if (!(event.player instanceof ServerPlayer player)) {
             return;
         }
@@ -256,9 +264,13 @@ public final class ControlService {
     }
 
     public static void refreshLockEffects(ServerPlayer viewer, LivingEntity target) {
-        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, LOCK_EFFECT_TICKS, 255, false, true, true));
-        target.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, LOCK_EFFECT_TICKS, 1, false, true, true));
-        target.addEffect(new MobEffectInstance(MobEffects.GLOWING, LOCK_EFFECT_TICKS, 0, false, true, true));
+        refreshLockEffects(target, SrConfig.COMMON.control.lockEffectTicks.get());
+    }
+
+    private static void refreshLockEffects(LivingEntity target, int ticks) {
+        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, ticks, 255, false, true, true));
+        target.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, ticks, 1, false, true, true));
+        target.addEffect(new MobEffectInstance(MobEffects.GLOWING, ticks, 0, false, true, true));
     }
 
     private static boolean needsLockRefresh(LivingEntity target) {
@@ -431,13 +443,9 @@ public final class ControlService {
     }
 
     private static void tickField(ServerPlayer player, FieldSession session) {
-        if (ModeService.getMode(player) != ResonanceMode.CONTROL) {
-            stopField(player, StopReason.MODE_CHANGE);
-            return;
-        }
         long now = player.level().getGameTime();
         long elapsed = now - session.startGameTime;
-        if (elapsed >= FIELD_DURATION_TICKS) {
+        if (elapsed >= session.durationTicks) {
             stopField(player, StopReason.TIMEOUT);
             return;
         }
@@ -446,12 +454,18 @@ public final class ControlService {
         double dx = pos.x - session.anchorX;
         double dy = pos.y - session.anchorY;
         double dz = pos.z - session.anchorZ;
-        if (dx * dx + dy * dy + dz * dz > MOVE_ABORT_THRESHOLD * MOVE_ABORT_THRESHOLD) {
+        double abort = session.moveAbortThreshold;
+        if (dx * dx + dy * dy + dz * dz > abort * abort) {
             stopField(player, StopReason.MOVED);
             return;
         }
 
-        int targetR = (int) Math.min(FIELD_MAX_RADIUS, elapsed / FIELD_EXPAND_INTERVAL);
+        if (ModeService.getMode(player) != ResonanceMode.CONTROL) {
+            stopField(player, StopReason.MODE_CHANGE);
+            return;
+        }
+
+        int targetR = (int) Math.min(session.maxRadius, elapsed / FIELD_EXPAND_INTERVAL);
         if (targetR > session.radius) {
             session.radius = targetR;
         }
@@ -466,21 +480,22 @@ public final class ControlService {
                     pos.x - r, pos.y - 2, pos.z - r,
                     pos.x + r, pos.y + 3, pos.z + r
             );
+            double rSq = r * r;
             for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, box, e ->
                     e.isAlive()
                             && e != player
                             && !AllyService.isProtected(player, e)
-                            && e.distanceToSqr(pos) <= r * r)) {
+                            && e.distanceToSqr(pos) <= rSq)) {
                 if (!isUnderLock(living)) {
-                    applyLock(player, living, level, true, true);
+                    applyLock(player, living, level, true, true, session.lockEffectTicks);
                 } else if (needsLockRefresh(living)) {
-                    refreshLockEffects(player, living);
+                    refreshLockEffects(living, session.lockEffectTicks);
                 }
             }
         }
 
         if (now % STATUS_INTERVAL == 0) {
-            int secLeft = (int) ((FIELD_DURATION_TICKS - elapsed) / 20);
+            int secLeft = (int) ((session.durationTicks - elapsed) / 20);
             ActionBars.show(player, Component.translatable(
                     "ui.static_resonance.field_status", session.radius, secLeft));
         }
@@ -516,14 +531,23 @@ public final class ControlService {
         final double anchorY;
         final double anchorZ;
         final long startGameTime;
+        final int durationTicks;
+        final int maxRadius;
+        final double moveAbortThreshold;
+        final int lockEffectTicks;
         int radius;
 
-        FieldSession(double anchorX, double anchorY, double anchorZ, long startGameTime, int radius) {
+        FieldSession(double anchorX, double anchorY, double anchorZ, long startGameTime, int radius,
+                     int durationTicks, int maxRadius, double moveAbortThreshold, int lockEffectTicks) {
             this.anchorX = anchorX;
             this.anchorY = anchorY;
             this.anchorZ = anchorZ;
             this.startGameTime = startGameTime;
             this.radius = radius;
+            this.durationTicks = durationTicks;
+            this.maxRadius = maxRadius;
+            this.moveAbortThreshold = moveAbortThreshold;
+            this.lockEffectTicks = lockEffectTicks;
         }
     }
 }

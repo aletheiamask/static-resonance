@@ -9,21 +9,27 @@
 - DRY
 - Separation of Concerns
 
-## Static Resonance — live implementation notes (2026-08-09)
+## Static Resonance — live implementation notes (2026-08-20)
 
 This mod is a **hybrid**: Origins/Apoli datapack for mode gates + some AoE, **Java services** for authority on spend/apply where dual costs would desync.
 
-| Concern | Canonical owner |
-|---------|-----------------|
-| Mode index | Apoli `systems/mode` via `ModeService` |
-| Charge 0–100 | Apoli `systems/charge` (min **0**, never negative) |
-| Mode select UX | Client `RadialModeMenu` — **select only**, free |
-| Cast / spend | G (Origins) or Java (`ControlService`, `FaradayService`) |
-| Magnetic lock spend+hit | **`ControlService.lockNearestTarget` only** |
-| Control field session | **`ControlService` SESSIONS map** |
-| Faraday repel | **`FaradayService.ACTIVE_CAGES`** + score `sr_faraday` |
+**One clock per concern.** Mirrors exist for HUD / datapack / relog. Do not tick a mirror every server tick.
 
-**Do not** spend charge in Origins JSON and again in Java for the same skill.
+| Concern | Canonical owner | Mirror (not the clock) |
+|---------|-----------------|------------------------|
+| Mode index | Apoli `systems/mode` via `ModeService` | — |
+| Charge 0–100 | Apoli `systems/charge` (min **0**, never negative) | `sr_mc` motion-source count |
+| Mode select UX | Client `RadialModeMenu` — **select only**, free | — |
+| Cast / spend | **F** → `CastPacket` → `CastService` | — |
+| Magnetic lock spend+hit | **`ControlService.lockLookTarget` only** | — |
+| Control field session | **`ControlService.SESSIONS`** | `systems/field_active` |
+| Faraday cage | `ACTIVE_CAGES` + `CAGE_EXPIRE_AT` | leftover `sr_faraday` |
+| Faraday cooldown | `COOLDOWNS` + `CD_EXPIRE_AT` | leftover `sr_faraday_cd` |
+| Scan marks | `ScanOutlineService.MARKED` | `systems/scan_active` |
+| Circuit force-toggle | `INTERFERENCES.expireGameTime` | — (F raycast + one pulse; later notifies canceled) |
+| Wall climb | `ClimbService` (always-on, dual-side) | — |
+
+**Do not** spend charge in Origins JSON and again in Java for the same skill. Write leftover scores on arm / expiry / HUD interval only.
 
 Full ability truth: [`AI_ABILITIES_CATALOG.md`](./AI_ABILITIES_CATALOG.md)
 
@@ -32,8 +38,9 @@ Full ability truth: [`AI_ABILITIES_CATALOG.md`](./AI_ABILITIES_CATALOG.md)
 ```
 com.staticresonance
   client/ui/     Radial (select-only wheel + sub-panels)
-  mode/          ModeService, ControlService, FaradayService, ApoliResources
-  network/       C2S packets (mode, style, faraday emergency)
+  mode/          ModeService, CastService, ControlService, FaradayService, ApoliResources
+  logic/         Pure formulas (charge buckets, expire clock, scan prune, gameplay defaults)
+  network/       C2S/S2C (cast F, mode, style, outlines)
   command/       sr_internal (permission 2 for Apoli execute_command)
 ```
 
@@ -42,8 +49,8 @@ com.staticresonance
 ```
 data/static_resonance/
   origins/
-  powers/   systems/ · mode/ · active/ · passive/ · weakness/
-  functions/  faraday/ · control/ · dust/ · sense/ · mode/ · systems/
+  powers/   systems/ · passive/ · weakness/
+  functions/  faraday/ · sense/ · mode/
   tags/
 ```
 

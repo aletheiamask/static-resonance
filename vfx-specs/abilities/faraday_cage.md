@@ -3,41 +3,35 @@
 | Field | Value |
 |-------|-------|
 | Mode | Aegis / Overcharge (3) |
-| Trigger | Primary G while mode==3 · or emergency auto |
-| Charge cost | 50, or borrow shortfall as debt |
-| Duration | 90s lattice |
-| Shared CD | 120s after cage ends |
-| Phase 1 | `functions/faraday/*` + vanilla particles |
+| Trigger | **F** while mode==3 (`FaradayService.tryActivate(MANUAL)`) · or emergency auto |
+| Charge cost | **50** manual (`GameplayDefaults.FARADAY_MANUAL_COST`). Emergency raise is free. Charge never goes negative |
+| Duration | **30s** (600 ticks), snapshotted on raise |
+| Shared CD | **120s** (2400 ticks) after cage ends |
+| Stand-in | Java aura (`tickCageFx` / `tickAura`) + `functions/faraday/activate` / `deactivate` / `emergency_fx` |
 
 ## Emergency
 
-- `prevent_death` → activate + sci-fi titles
-- HP ≤ 5 after hit → activate
-- Toggle from radial sub-panel (resource `systems/faraday_emergency`)
+- Radial sub toggle → `ToggleFaradayEmergencyPacket`
+- Java `LivingDamageEvent` HIGHEST: if a hit would leave health + absorption below **2**, raise cage (no spend, ignores cooldown), cap this hit
+- Origins `prevent_death` is a last-ditch net
 
 ## Timeline
 
 | t | Event |
 |--:|-------|
-| 0.00 | Flash + spark lattice expand |
-| 0–90s | Resistance V, projectile hold ~1.5–2s then drop |
-| idle | Geometric cage particles (see emitters) |
-| end | Lattice shatter, 120s re-arm CD |
+| 0.00 | Spend 50 (manual) · flash + thunder |
+| 0–30s | Resistance / fire resist · catch projectiles · repel living (r=10 / hard 5 / mid 7) |
+| idle | Soft Java aura — not a hex lattice |
+| end | Deactivate FX · 120s re-arm CD |
 
-## Emitters (idle lattice)
+## Emitters (idle)
 
-Phase-1 stand-in is a 3-emitter silhouette (`functions/faraday/particles.mcfunction`):
-
-1. **Ground seal** — low `end_rod` disk  
-2. **Body lattice** — `electric_spark` around torso  
-3. **Apex** — `glow` at head  
-
-Open/close keep flash + thunder / glass. Future 3D cage can replace the idle trio.
+Java sparks around the caster. Open/close keep flash + thunder. Future 3D cage can replace the idle aura.
 
 ## Sound
 
-Thunder high + beacon activate · emergency adds elder guardian sting
+Thunder + beacon activate · emergency adds sting
 
 ## UI
 
-Emergency arm toggle: radial **sub-wheel** (RMB on Faraday) · green ON / black OFF
+Emergency arm toggle: radial **sub-panel** (LMB on Faraday) · green ON / black OFF

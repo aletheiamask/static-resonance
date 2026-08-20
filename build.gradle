@@ -72,8 +72,15 @@ dependencies {
     // Apoli/Calio are jar-in-jar inside Origins; compile against extracted APIs for ModeService.
     compileOnly files(
             'libs/apoli-forge-1.20.1-2.9.0.7.jar',
-            'libs/calio-forge-1.20.1-1.11.0.4.jar'
+            'libs/calio-forge-1.20.1-1.11.0.4.jar',
+            'libs/cloth-config-11.1.136-forge.jar'
     )
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
 }
 
 tasks.named('processResources', ProcessResources).configure {

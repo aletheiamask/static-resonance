@@ -1,6 +1,8 @@
 package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
+import com.staticresonance.config.SrConfig;
+import com.staticresonance.logic.MarkPrune;
 import com.staticresonance.network.ModNetwork;
 import com.staticresonance.network.PacketLimits;
 import com.staticresonance.network.ScanOutlinePacket;
@@ -49,14 +51,13 @@ public final class ScanOutlineService {
     public static final int FILTER_HOSTILE = 2;
     public static final int FILTER_PLAYERS = 4;
     public static final int FILTER_ALL = FILTER_PASSIVE | FILTER_HOSTILE | FILTER_PLAYERS;
-    public static final int SCAN_COST = 8;
-    public static final int SCAN_RADIUS = 32;
 
     private static final double MIN_DISTANCE = 0.5;
     private static final int MAX_MARKS = PacketLimits.MAX_OUTLINE_MARKS;
     private static final int PRUNE_INTERVAL = 20;
 
     private static final Map<UUID, Set<UUID>> MARKED = new ConcurrentHashMap<>();
+    private static final Map<UUID, Map<UUID, Integer>> UNLOAD_STRIKES = new ConcurrentHashMap<>();
 
     private ScanOutlineService() {
     }
@@ -70,17 +71,19 @@ public final class ScanOutlineService {
             stop(player);
             return true;
         }
+        int cost = SrConfig.COMMON.sense.scanCost.get();
         int charge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
-        if (charge < SCAN_COST) {
+        if (charge < cost) {
             ActionBars.show(player,
                     net.minecraft.network.chat.Component.translatable("ui.static_resonance.charge_too_low"));
             return false;
         }
-        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - SCAN_COST)) {
+        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - cost)) {
             return false;
         }
+        int radius = SrConfig.COMMON.sense.scanRadius.get();
         ApoliResources.setValue(player, ACTIVE_POWER, 1);
-        ApoliResources.setValue(player, RADIUS_POWER, SCAN_RADIUS);
+        ApoliResources.setValue(player, RADIUS_POWER, radius);
         ApoliResources.sync(player);
         runFunction(player, "function static_resonance:sense/scan_start");
         pulse(player);
@@ -107,10 +110,10 @@ public final class ScanOutlineService {
     public static void pulse(ServerPlayer scanner) {
         Set<UUID> marked = MARKED.computeIfAbsent(scanner.getUUID(), id -> new LinkedHashSet<>());
         ServerLevel level = scanner.serverLevel();
-        pruneDead(level, marked);
+        pruneDead(scanner.getUUID(), level, marked);
         Vec3 pos = scanner.position();
         int filter = getFilter(scanner);
-        double r = SCAN_RADIUS;
+        double r = scanRadius(scanner);
         double minSq = MIN_DISTANCE * MIN_DISTANCE;
         double maxSq = r * r;
         AABB box = new AABB(pos.x - r, pos.y - r, pos.z - r, pos.x + r, pos.y + r, pos.z + r);
@@ -148,6 +151,11 @@ public final class ScanOutlineService {
         }
         ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> scanner),
                 new ScanOutlinePacket(false, List.of(target.getUUID())));
+    }
+
+    public static int scanRadius(Player player) {
+        int stored = ApoliResources.getValue(player, RADIUS_POWER).orElse(0);
+        return stored > 0 ? stored : SrConfig.COMMON.sense.scanRadius.get();
     }
 
     public static int getFilter(Player player) {
@@ -189,7 +197,9 @@ public final class ScanOutlineService {
     }
 
     public static void clear(ServerPlayer scanner) {
-        MARKED.remove(scanner.getUUID());
+        UUID id = scanner.getUUID();
+        MARKED.remove(id);
+        UNLOAD_STRIKES.remove(id);
         ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> scanner),
                 new ScanOutlinePacket(true, List.of()));
     }
@@ -207,20 +217,46 @@ public final class ScanOutlineService {
             ServerPlayer player = server.getPlayerList().getPlayer(scannerId);
             if (player == null) {
                 MARKED.remove(scannerId);
+                UNLOAD_STRIKES.remove(scannerId);
                 continue;
             }
-            pruneDead(player.serverLevel(), MARKED.get(scannerId));
+            if (ModeService.getMode(player) != ResonanceMode.SENSE) {
+                stop(player);
+                continue;
+            }
+            Set<UUID> marked = MARKED.get(scannerId);
+            if (!pruneDead(scannerId, player.serverLevel(), marked) || marked == null) {
+                continue;
+            }
+            ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                    new ScanOutlinePacket(true, new ArrayList<>(marked)));
         }
     }
 
-    private static void pruneDead(ServerLevel level, Set<UUID> marked) {
+    /** Drop loaded-dead; drop unloaded after two misses. Do not drop loaded living that walked out of range. */
+    private static boolean pruneDead(UUID scannerId, ServerLevel level, Set<UUID> marked) {
         if (marked == null || marked.isEmpty()) {
-            return;
+            UNLOAD_STRIKES.remove(scannerId);
+            return false;
         }
-        marked.removeIf(id -> {
+        Map<UUID, Integer> strikes = UNLOAD_STRIKES.computeIfAbsent(scannerId, id -> new ConcurrentHashMap<>());
+        boolean changed = marked.removeIf(id -> {
             Entity entity = level.getEntity(id);
-            return entity != null && !entity.isAlive();
+            boolean present = entity != null;
+            boolean alive = present && entity.isAlive();
+            int next = MarkPrune.nextMissStrikes(present, strikes.getOrDefault(id, 0));
+            if (present) {
+                strikes.remove(id);
+            } else {
+                strikes.put(id, next);
+            }
+            return MarkPrune.shouldDrop(present, alive, next);
         });
+        strikes.keySet().removeIf(id -> !marked.contains(id));
+        if (strikes.isEmpty()) {
+            UNLOAD_STRIKES.remove(scannerId);
+        }
+        return changed;
     }
 
     private static void evictOldest(Set<UUID> marked) {
@@ -237,7 +273,9 @@ public final class ScanOutlineService {
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            MARKED.remove(player.getUUID());
+            UUID id = player.getUUID();
+            MARKED.remove(id);
+            UNLOAD_STRIKES.remove(id);
         }
     }
 
@@ -245,6 +283,7 @@ public final class ScanOutlineService {
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player && isActive(player)) {
             MARKED.remove(player.getUUID());
+            UNLOAD_STRIKES.remove(player.getUUID());
             pulse(player);
         }
     }
@@ -253,6 +292,7 @@ public final class ScanOutlineService {
     public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player && isActive(player)) {
             MARKED.remove(player.getUUID());
+            UNLOAD_STRIKES.remove(player.getUUID());
             pulse(player);
         }
     }

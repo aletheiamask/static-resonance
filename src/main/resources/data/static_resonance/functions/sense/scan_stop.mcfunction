@@ -1,8 +1,5 @@
 # Static Scan — cancel / auto-stop cleanup (no team mutations)
-# Bound to scan soft-cap so stop does not walk the whole dimension
-
-tag @e[tag=sr_scanned,distance=..128] remove sr_scanned
-tag @e[tag=sr_scan_pinged,distance=..128] remove sr_scan_pinged
+# Marks live in Java; leftover entity tags are not written anymore.
 
 scoreboard players set @s sr_scan 0
 sr_internal scan_clear

@@ -1,6 +1,8 @@
 package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
+import com.staticresonance.config.SrConfig;
+import com.staticresonance.logic.ChargeBuckets;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -22,18 +24,14 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 /**
  * Nearby moving mobs refill charge. Replaces {@code motion_harvest}/{@code motion_try}
  * NBT reads and the four Brigadier {@code origins:command} buckets.
+ * Walks the online player list; do not rebuild a permanent origin-player set.
  */
 @Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID)
 public final class MotionHarvestService {
     public static final TagKey<EntityType<?>> MOTION_SOURCES = TagKey.create(
             Registries.ENTITY_TYPE, new ResourceLocation(StaticResonanceMod.MOD_ID, "motion_sources"));
 
-    private static final int INTERVAL = 20;
-    private static final int BUBBLE_INTERVAL = 35;
-    private static final double MIN_DIST = 0.5;
-    private static final double MAX_DIST = 5.0;
     private static final double AXIS_THRESHOLD = 0.03;
-    private static final int CAP = 8;
     private static final String OBJ_MC = "sr_mc";
 
     private MotionHarvestService() {
@@ -49,68 +47,85 @@ public final class MotionHarvestService {
             return;
         }
         long now = server.overworld().getGameTime();
-        if (now % BUBBLE_INTERVAL == 0L) {
-            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                spawnWetBubbles(player);
-            }
-        }
-        if (now % INTERVAL != 0L) {
+        int regenEvery = SrConfig.COMMON.charge.regenIntervalTicks.get();
+        int motionEvery = SrConfig.COMMON.charge.motionIntervalTicks.get();
+        boolean regen = regenEvery > 0 && now % regenEvery == 0L;
+        boolean motion = motionEvery > 0 && now % motionEvery == 0L;
+        if (!regen && !motion) {
             return;
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            harvest(player);
+            if (!ModeService.hasModePower(player)) {
+                continue;
+            }
+            boolean changed = false;
+            if (regen) {
+                changed |= regenTick(player);
+            }
+            if (motion) {
+                changed |= harvest(player);
+            }
+            if (changed) {
+                ApoliResources.sync(player);
+            }
         }
     }
 
-    private static void spawnWetBubbles(ServerPlayer player) {
-        if (!ModeService.hasModePower(player) || !player.isInWaterOrRain()) {
-            return;
-        }
-        player.serverLevel().sendParticles(ParticleTypes.BUBBLE,
-                player.getX(), player.getY() + 1.0, player.getZ(),
-                4, 0.3, 0.4, 0.3, 0.02);
-    }
-
-    private static void harvest(ServerPlayer player) {
-        if (!ModeService.hasModePower(player)) {
-            return;
-        }
+    private static boolean regenTick(ServerPlayer player) {
         int charge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
-        if (charge >= 100) {
-            return;
+        int next;
+        if (player.isInWaterOrRain()) {
+            next = Math.max(0, charge - SrConfig.COMMON.charge.wetDrain.get());
+            player.serverLevel().sendParticles(ParticleTypes.BUBBLE,
+                    player.getX(), player.getY() + 1.0, player.getZ(),
+                    4, 0.3, 0.4, 0.3, 0.02);
+        } else if (charge < SrConfig.CHARGE_MAX) {
+            next = Math.min(SrConfig.CHARGE_MAX, charge + SrConfig.COMMON.charge.dryGain.get());
+        } else {
+            return false;
+        }
+        return next != charge && ApoliResources.setValue(player, ModeService.CHARGE_POWER, next);
+    }
+
+    private static boolean harvest(ServerPlayer player) {
+        int charge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
+        if (charge >= SrConfig.CHARGE_MAX) {
+            return false;
         }
 
         ServerLevel level = player.serverLevel();
         Vec3 pos = player.position();
-        double minSq = MIN_DIST * MIN_DIST;
-        double maxSq = MAX_DIST * MAX_DIST;
+        double minDist = SrConfig.COMMON.charge.motionMinDist.get();
+        double maxDist = SrConfig.COMMON.charge.motionMaxDist.get();
+        double minSq = minDist * minDist;
+        double maxSq = maxDist * maxDist;
         AABB box = new AABB(
-                pos.x - MAX_DIST, pos.y - MAX_DIST, pos.z - MAX_DIST,
-                pos.x + MAX_DIST, pos.y + MAX_DIST, pos.z + MAX_DIST);
+                pos.x - maxDist, pos.y - maxDist, pos.z - maxDist,
+                pos.x + maxDist, pos.y + maxDist, pos.z + maxDist);
 
         int count = 0;
+        int cap = SrConfig.COMMON.charge.motionCap.get();
         for (Entity entity : level.getEntities(player, box, MotionHarvestService::isMotionSource)) {
             double distSq = entity.distanceToSqr(pos);
             if (distSq < minSq || distSq > maxSq || !isMoving(entity)) {
                 continue;
             }
             count++;
-            if (count >= CAP) {
+            if (count >= cap) {
                 break;
             }
         }
 
         writeMotionCount(player, count);
-        int delta = bucket(count);
+        int delta = ChargeBuckets.reward(count);
         if (delta <= 0) {
-            return;
+            return false;
         }
-        int next = Math.min(100, charge + delta);
-        if (next != charge && ApoliResources.setValue(player, ModeService.CHARGE_POWER, next)) {
-            ApoliResources.sync(player);
-        }
+        int next = Math.min(SrConfig.CHARGE_MAX, charge + delta);
+        boolean changed = next != charge && ApoliResources.setValue(player, ModeService.CHARGE_POWER, next);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                 pos.x, pos.y + 1.0, pos.z, 4, 0.35, 0.4, 0.35, 0.02);
+        return changed;
     }
 
     private static boolean isMotionSource(Entity entity) {
@@ -122,22 +137,6 @@ public final class MotionHarvestService {
         return Math.abs(motion.x) >= AXIS_THRESHOLD
                 || Math.abs(motion.y) >= AXIS_THRESHOLD
                 || Math.abs(motion.z) >= AXIS_THRESHOLD;
-    }
-
-    private static int bucket(int count) {
-        if (count >= 7) {
-            return 4;
-        }
-        if (count >= 5) {
-            return 3;
-        }
-        if (count >= 3) {
-            return 2;
-        }
-        if (count >= 1) {
-            return 1;
-        }
-        return 0;
     }
 
     private static void writeMotionCount(ServerPlayer player, int count) {

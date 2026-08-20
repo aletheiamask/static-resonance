@@ -7,8 +7,11 @@
 package com.staticresonance;
 
 import com.mojang.logging.LogUtils;
+import com.staticresonance.config.SrConfig;
 import com.staticresonance.network.ModNetwork;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
@@ -23,6 +26,7 @@ public class StaticResonanceMod {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public StaticResonanceMod() {
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SrConfig.COMMON_SPEC);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::commonSetup);
     }
 

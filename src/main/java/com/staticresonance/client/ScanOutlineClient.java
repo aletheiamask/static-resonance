@@ -3,6 +3,7 @@ package com.staticresonance.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.staticresonance.StaticResonanceMod;
+import com.staticresonance.config.SrConfig;
 import com.staticresonance.mode.ScanOutlineService;
 import com.staticresonance.network.PacketLimits;
 import com.staticresonance.network.ScanOutlinePacket;
@@ -11,6 +12,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.entity.Entity;
@@ -28,6 +30,8 @@ import net.minecraftforge.fml.common.Mod;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,8 +44,8 @@ import java.util.UUID;
 @Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID, value = Dist.CLIENT)
 public final class ScanOutlineClient {
     private static final int SPARK_INTERVAL = 4;
+    private static final int FLECK_CAP = 24;
     private static final int REVEAL_TICKS = 20;
-    private static final float REVEAL_MAX = 32.0f;
     private static final float[] COLOR_PASSIVE = {0.28f, 0.92f, 0.38f};
     private static final float[] COLOR_PLAYER = {1.00f, 1.00f, 1.00f};
     private static final float[] COLOR_HOSTILE = {1.00f, 0.22f, 0.20f};
@@ -56,6 +60,8 @@ public final class ScanOutlineClient {
     private static final List<LivingEntity> CACHED = new ArrayList<>();
     private static int clientTick;
     private static int revealTicks;
+    private static int markGeneration;
+    private static int walkedGeneration = -1;
     private static Vec3 scanOrigin;
 
     private ScanOutlineClient() {
@@ -80,6 +86,7 @@ public final class ScanOutlineClient {
             it.next();
             it.remove();
         }
+        markGeneration++;
         if (first) {
             Minecraft mc = Minecraft.getInstance();
             scanOrigin = mc.player != null ? mc.player.position() : null;
@@ -102,10 +109,10 @@ public final class ScanOutlineClient {
             revealTicks++;
         }
         if ((clientTick & 1) == 0 || CACHED.isEmpty()) {
-            rebuildCache(level, mc.player);
+            rebuildCache(level);
         }
         if (!CACHED.isEmpty() && clientTick % SPARK_INTERVAL == 0) {
-            spawnLocalFlecks(level);
+            spawnLocalFlecks(level, mc.player);
         }
     }
 
@@ -124,9 +131,12 @@ public final class ScanOutlineClient {
         pose.pushPose();
         pose.translate(-cam.x, -cam.y, -cam.z);
 
-        RenderType type = SeeThroughRender.lines();
+        RenderType type = SrConfig.COMMON.visuals.seeThroughWalls.get()
+                ? SeeThroughRender.lines()
+                : RenderType.lines();
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         VertexConsumer lines = buffers.getBuffer(type);
+        Frustum frustum = event.getFrustum();
         float reveal = revealRadius();
         boolean expanding = revealTicks < REVEAL_TICKS && scanOrigin != null;
         double revealSq = reveal * reveal;
@@ -137,8 +147,11 @@ public final class ScanOutlineClient {
             if (expanding && living.distanceToSqr(scanOrigin) > revealSq) {
                 continue;
             }
-            float[] rgb = colorFor(living);
             AABB box = living.getBoundingBox().inflate(0.06);
+            if (frustum != null && !frustum.isVisible(box)) {
+                continue;
+            }
+            float[] rgb = colorFor(living);
             LevelRenderer.renderLineBox(pose, lines, box, rgb[0], rgb[1], rgb[2], 0.95f);
         }
         buffers.endBatch(type);
@@ -156,7 +169,12 @@ public final class ScanOutlineClient {
     }
 
     private static float revealRadius() {
-        return REVEAL_MAX * Math.min(1.0f, revealTicks / (float) REVEAL_TICKS);
+        return scanRadius() * Math.min(1.0f, revealTicks / (float) REVEAL_TICKS);
+    }
+
+    private static float scanRadius() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player == null ? 0f : ScanOutlineService.scanRadius(mc.player);
     }
 
     private static boolean revealed(LivingEntity living) {
@@ -177,20 +195,54 @@ public final class ScanOutlineClient {
         return COLOR_PASSIVE;
     }
 
-    private static void rebuildCache(ClientLevel level, Player player) {
-        CACHED.clear();
+    private static void rebuildCache(ClientLevel level) {
         if (MARKED.isEmpty()) {
+            CACHED.clear();
             return;
         }
-        AABB search = player.getBoundingBox().inflate(ScanOutlineService.SCAN_RADIUS);
-        for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, search,
-                e -> MARKED.contains(e.getUUID()))) {
-            if (!living.isAlive()) {
-                MARKED.remove(living.getUUID());
+        // ClientLevel / TransientEntitySectionManager does not index by UUID.
+        // Keep live refs; walk the render list at most once per S2C generation.
+        List<LivingEntity> next = new ArrayList<>(CACHED.size());
+        Set<UUID> have = new HashSet<>();
+        for (LivingEntity living : CACHED) {
+            UUID id = living.getUUID();
+            if (!MARKED.contains(id)) {
                 continue;
             }
-            CACHED.add(living);
+            if (!living.isAlive()) {
+                MARKED.remove(id);
+                continue;
+            }
+            if (living.isRemoved()) {
+                continue;
+            }
+            next.add(living);
+            have.add(id);
         }
+        if (have.size() < MARKED.size()
+                && (walkedGeneration != markGeneration || (clientTick % 20) == 0)) {
+            walkedGeneration = markGeneration;
+            for (Entity entity : level.entitiesForRendering()) {
+                if (!(entity instanceof LivingEntity living)) {
+                    continue;
+                }
+                UUID id = living.getUUID();
+                if (!MARKED.contains(id) || have.contains(id)) {
+                    continue;
+                }
+                if (!living.isAlive()) {
+                    MARKED.remove(id);
+                    continue;
+                }
+                next.add(living);
+                have.add(id);
+                if (have.size() >= MARKED.size()) {
+                    break;
+                }
+            }
+        }
+        CACHED.clear();
+        CACHED.addAll(next);
     }
 
     private static DustParticleOptions dustFor(Entity entity) {
@@ -204,11 +256,19 @@ public final class ScanOutlineClient {
         return DUST_PASSIVE;
     }
 
-    private static void spawnLocalFlecks(ClientLevel level) {
+    private static void spawnLocalFlecks(ClientLevel level, Player player) {
+        List<LivingEntity> shown = new ArrayList<>(CACHED.size());
         for (LivingEntity entity : CACHED) {
-            if (!revealed(entity)) {
-                continue;
+            if (revealed(entity)) {
+                shown.add(entity);
             }
+        }
+        if (shown.size() > FLECK_CAP) {
+            Vec3 here = player.position();
+            shown.sort(Comparator.comparingDouble(e -> e.distanceToSqr(here)));
+            shown = shown.subList(0, FLECK_CAP);
+        }
+        for (LivingEntity entity : shown) {
             double x = entity.getX();
             double y = entity.getY() + entity.getBbHeight() * 0.65;
             double z = entity.getZ();
@@ -230,13 +290,12 @@ public final class ScanOutlineClient {
         MARKED.clear();
         CACHED.clear();
         revealTicks = 0;
+        markGeneration++;
+        walkedGeneration = markGeneration;
         scanOrigin = null;
     }
 
     private static void clearAll() {
-        MARKED.clear();
-        CACHED.clear();
-        revealTicks = 0;
-        scanOrigin = null;
+        clearScanMarks();
     }
 }

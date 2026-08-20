@@ -1,6 +1,7 @@
 package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
+import com.staticresonance.config.SrConfig;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -36,10 +37,6 @@ public final class DustService {
 
     public static final int STYLE_BURST = 0;
     public static final int STYLE_ZONE = 1;
-    public static final int BURST_COST = 5;
-    public static final int ZONE_COST = 10;
-    public static final double ZONE_RADIUS = 6.0;
-    public static final int ZONE_DURATION_TICKS = 200;
     public static final int BLIND_REFRESH_TICKS = 40;
     private static final int ZONE_TICK_INTERVAL = 4;
 
@@ -83,12 +80,13 @@ public final class DustService {
             ActionBars.show(player, Component.translatable("ui.static_resonance.dust_single_miss"));
             return false;
         }
+        int cost = SrConfig.COMMON.dust.burstCost.get();
         int charge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
-        if (charge < BURST_COST) {
+        if (charge < cost) {
             ActionBars.show(player, Component.translatable("ui.static_resonance.charge_too_low"));
             return false;
         }
-        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - BURST_COST)) {
+        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - cost)) {
             return false;
         }
         ApoliResources.sync(player);
@@ -117,19 +115,22 @@ public final class DustService {
             ActionBars.show(player, Component.translatable("ui.static_resonance.dust_zone_miss"));
             return false;
         }
+        int cost = SrConfig.COMMON.dust.zoneCost.get();
         int charge = ModeService.getResourceValue(player, ModeService.CHARGE_POWER).orElse(0);
-        if (charge < ZONE_COST) {
+        if (charge < cost) {
             ActionBars.show(player, Component.translatable("ui.static_resonance.charge_too_low"));
             return false;
         }
-        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - ZONE_COST)) {
+        if (!ApoliResources.setValue(player, ModeService.CHARGE_POWER, charge - cost)) {
             return false;
         }
         ApoliResources.sync(player);
 
         Vec3 at = focus.position();
         ZONES.put(player.getUUID(), new DustZone(player.serverLevel().dimension(),
-                at.x, at.y, at.z, player.level().getGameTime() + ZONE_DURATION_TICKS));
+                at.x, at.y, at.z,
+                player.level().getGameTime() + SrConfig.COMMON.dust.zoneDurationTicks.get(),
+                SrConfig.COMMON.dust.zoneRadius.get()));
 
         ServerLevel level = player.serverLevel();
         level.sendParticles(ParticleTypes.CLOUD, at.x, at.y + 1.0, at.z, 24, 1.4, 0.6, 1.4, 0.02);
@@ -177,7 +178,7 @@ public final class DustService {
     }
 
     private static void tickZone(ServerPlayer owner, ServerLevel level, DustZone zone) {
-        double r = ZONE_RADIUS;
+        double r = zone.radius;
         AABB box = new AABB(zone.x - r, zone.y - 1.0, zone.z - r, zone.x + r, zone.y + 3.0, zone.z + r);
         double rSq = r * r;
         for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, box, e ->
@@ -188,7 +189,10 @@ public final class DustService {
             if (owner != null && living == owner) {
                 continue;
             }
-            living.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, BLIND_REFRESH_TICKS, 0, false, true, true));
+            var blindness = living.getEffect(MobEffects.BLINDNESS);
+            if (blindness == null || blindness.getDuration() < 20) {
+                living.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, BLIND_REFRESH_TICKS, 0, false, true, true));
+            }
         }
         level.sendParticles(SAND_DUST, zone.x, zone.y + 1.0, zone.z, 10, 1.6, 0.5, 1.6, 0.02);
         level.sendParticles(ParticleTypes.CLOUD, zone.x, zone.y + 1.1, zone.z, 6, 1.4, 0.4, 1.4, 0.01);
@@ -200,14 +204,16 @@ public final class DustService {
         final double y;
         final double z;
         final long expireAt;
+        final double radius;
 
         DustZone(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension,
-                 double x, double y, double z, long expireAt) {
+                 double x, double y, double z, long expireAt, double radius) {
             this.dimension = dimension;
             this.x = x;
             this.y = y;
             this.z = z;
             this.expireAt = expireAt;
+            this.radius = radius;
         }
     }
 }

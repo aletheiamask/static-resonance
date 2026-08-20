@@ -30,5 +30,5 @@ This folder is **design-only** for a future 3D / advanced effect pass.
 2. Dust Curtain volume
 3. Static Scan pulse ring
 4. Magnetic Lock chain / tether
-5. Pulse Explosion shockwave + spark burst
+5. Pulse Explosion shockwave + spark burst (design-only — not a live cast)
 6. Radial UI

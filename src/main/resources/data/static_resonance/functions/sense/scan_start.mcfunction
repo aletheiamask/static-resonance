@@ -1,7 +1,6 @@
-# Static Scan — one-shot mark. Radius expand is client-only.
+# Static Scan — one-shot mark. Radius lives in Java (scan_radius resource).
 # Objectives created on #minecraft:load (init)
 
-scoreboard players set @s sr_scan 32
 sr_internal scan_clear
 
 particle minecraft:sonic_boom ~ ~1 ~ 0 0 0 0 1 force @a[distance=..32]

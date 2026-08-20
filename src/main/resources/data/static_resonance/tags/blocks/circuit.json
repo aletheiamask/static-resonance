@@ -2,7 +2,6 @@
   "replace": false,
   "values": [
     "minecraft:redstone_wire",
-    "minecraft:redstone_block",
     "minecraft:redstone_torch",
     "minecraft:redstone_wall_torch",
     "minecraft:repeater",

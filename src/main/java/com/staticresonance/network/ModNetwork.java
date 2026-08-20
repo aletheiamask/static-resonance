@@ -7,7 +7,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String PROTOCOL = "9";
+    private static final String PROTOCOL = "10";
     private static int packetId = 0;
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.ChannelBuilder
@@ -65,11 +65,6 @@ public final class ModNetwork {
                 .decoder(CastPacket::decode)
                 .encoder(CastPacket::encode)
                 .consumerMainThread(CastPacket::handle)
-                .add();
-        CHANNEL.messageBuilder(CircuitOutlinePacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(CircuitOutlinePacket::decode)
-                .encoder(CircuitOutlinePacket::encode)
-                .consumerMainThread(CircuitOutlinePacket::handle)
                 .add();
     }
 }

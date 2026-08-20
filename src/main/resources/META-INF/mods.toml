@@ -7,8 +7,8 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
-credits="Created by Pipothai. GitHub: https://github.com/aletheiamask · YouTube: https://www.youtube.com/@Tuna_Sandwich_TOT"
-displayURL="https://github.com/aletheiamask/static-resonance"
+credits="Created by Pipothai. YouTube: https://www.youtube.com/@Tuna_Sandwich_TOT"
+displayURL="https://www.youtube.com/@Tuna_Sandwich_TOT"
 logoFile="logo.png"
 description='''${mod_description}'''
 
@@ -39,3 +39,10 @@ description='''${mod_description}'''
     versionRange="[1.0,)"
     ordering="BEFORE"
     side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="cloth_config"
+    mandatory=false
+    versionRange="[11,)"
+    ordering="NONE"
+    side="CLIENT"

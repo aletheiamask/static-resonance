@@ -1,9 +1,7 @@
 package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
-import com.staticresonance.network.CircuitOutlinePacket;
-import com.staticresonance.network.ModNetwork;
-import com.staticresonance.network.PacketLimits;
+import com.staticresonance.config.SrConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -15,7 +13,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.TagKey;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -44,55 +41,39 @@ import net.minecraftforge.event.level.NoteBlockEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Circuit mode: selecting the mode reveals nearby wiring (free).
- * F force-toggles the looked-at piece for {@link #TOGGLE_TICKS}.
+ * Circuit mode: F force-toggles the looked-at {@code #circuit} piece for a few seconds.
+ * Idle Circuit does no world walk. One raycast on F, one neighbor pulse, then cancel-only hold.
  */
 @Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID)
 public final class CircuitService {
     public static final TagKey<Block> CIRCUIT_TAG = TagKey.create(
             Registries.BLOCK, new ResourceLocation(StaticResonanceMod.MOD_ID, "circuit"));
 
-    public static final int TOGGLE_COST = 8;
-    public static final int RADIUS = 16;
-    public static final int TOGGLE_TICKS = 160;
-    private static final int SCAN_INTERVAL = 20;
-    private static final int MOVE_SNAP = 4;
-    private static final int MAX_MARKS = PacketLimits.MAX_OUTLINE_MARKS;
-
-    private static final Map<UUID, Sight> SIGHTS = new ConcurrentHashMap<>();
     private static final Map<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>> INTERFERENCES =
             new ConcurrentHashMap<>();
 
     private CircuitService() {
     }
 
-    public static boolean isSightActive(Player player) {
-        return SIGHTS.containsKey(player.getUUID());
+    private static int lookRange() {
+        return SrConfig.COMMON.circuit.lookRange.get();
     }
 
     public static boolean cast(ServerPlayer player) {
         if (!ModeService.hasModePower(player) || ModeService.getMode(player) != ResonanceMode.CIRCUIT) {
             return false;
         }
-        if (!isSightActive(player)) {
-            startSight(player);
-        }
         BlockPos look = lookCircuit(player);
-        if (look == null || player.serverLevel().getBlockState(look).is(Blocks.REDSTONE_BLOCK)) {
+        if (look == null) {
             ActionBars.show(player, Component.translatable("ui.static_resonance.circuit_miss"));
             return false;
         }
@@ -100,46 +81,18 @@ public final class CircuitService {
     }
 
     public static void onModeChanged(ServerPlayer player, ResonanceMode mode) {
-        if (mode == ResonanceMode.CIRCUIT) {
-            startSight(player);
-        } else {
-            stopSight(player, false);
-        }
-    }
-
-    private static void startSight(ServerPlayer player) {
-        Sight existing = SIGHTS.get(player.getUUID());
-        if (existing != null) {
-            refreshSight(player, existing, true);
-            return;
-        }
-        Sight sight = new Sight();
-        SIGHTS.put(player.getUUID(), sight);
-        refreshSight(player, sight, true);
-        sight.lastOrigin = player.blockPosition().immutable();
-        sight.dirty = false;
-        player.serverLevel().playSound(null, player.blockPosition(),
-                SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.55f, 1.6f);
-    }
-
-    private static void stopSight(ServerPlayer player, boolean announce) {
-        if (SIGHTS.remove(player.getUUID()) == null) {
-            return;
-        }
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new CircuitOutlinePacket(true, List.of()));
-        if (announce) {
-            ActionBars.show(player, Component.translatable("ui.static_resonance.circuit_closed"));
+        if (mode != ResonanceMode.CIRCUIT) {
+            restoreOwned(player.getUUID());
         }
     }
 
     private static boolean toggleLooked(ServerPlayer player, BlockPos pos) {
         ServerLevel level = player.serverLevel();
         BlockState state = level.getBlockState(pos);
-        if (!state.is(CIRCUIT_TAG) || state.is(Blocks.REDSTONE_BLOCK)) {
+        if (!state.is(CIRCUIT_TAG)) {
             return false;
         }
-        if (!spend(player, TOGGLE_COST)) {
+        if (!spend(player, SrConfig.COMMON.circuit.toggleCost.get())) {
             return false;
         }
         ResourceKey<Level> dim = level.dimension();
@@ -149,15 +102,11 @@ public final class CircuitService {
         boolean forceOn = !currentlyOn;
         BlockState saved = existing != null ? existing.saved : state;
         BlockPos frozen = pos.immutable();
+        dropQuiet(dim, packed);
+        applyForce(level, pos, saved, forceOn);
         putInterference(dim, packed, new Interference(
                 player.getUUID(), dim, frozen, saved, forceOn,
-                level.getGameTime() + TOGGLE_TICKS));
-        applyForce(level, pos, saved, forceOn, true);
-        Sight sight = SIGHTS.get(player.getUUID());
-        if (sight != null) {
-            sight.marks.put(pos.immutable(), forceOn);
-            sendSight(player, sight);
-        }
+                level.getGameTime() + SrConfig.COMMON.circuit.toggleTicks.get()));
         level.playSound(null, pos,
                 forceOn ? SoundEvents.NOTE_BLOCK_PLING.value() : SoundEvents.REDSTONE_TORCH_BURNOUT,
                 SoundSource.PLAYERS, 0.45f, forceOn ? 1.8f : 0.7f);
@@ -168,7 +117,7 @@ public final class CircuitService {
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) {
+        if (event.phase != TickEvent.Phase.END || INTERFERENCES.isEmpty()) {
             return;
         }
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
@@ -176,62 +125,6 @@ public final class CircuitService {
             return;
         }
         tickInterferences(server);
-        if (SIGHTS.isEmpty()) {
-            return;
-        }
-        long now = server.overworld().getGameTime();
-        for (UUID id : SIGHTS.keySet()) {
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || ModeService.getMode(player) != ResonanceMode.CIRCUIT) {
-                if (player != null) {
-                    stopSight(player, false);
-                } else {
-                    SIGHTS.remove(id);
-                }
-                continue;
-            }
-            Sight sight = SIGHTS.get(id);
-            if (sight == null) {
-                continue;
-            }
-            if (now % SCAN_INTERVAL == 0) {
-                BlockPos here = player.blockPosition();
-                if (sight.dirty || sight.lastOrigin == null
-                        || sight.lastOrigin.distManhattan(here) >= MOVE_SNAP) {
-                    refreshSight(player, sight, false);
-                    sight.lastOrigin = here.immutable();
-                    sight.dirty = false;
-                }
-            }
-        }
-    }
-
-    @SubscribeEvent
-    public static void onPlace(BlockEvent.EntityPlaceEvent event) {
-        markSightsDirty(event.getLevel(), event.getPos());
-    }
-
-    @SubscribeEvent
-    public static void onBreak(BlockEvent.BreakEvent event) {
-        markSightsDirty(event.getLevel(), event.getPos());
-    }
-
-    private static void markSightsDirty(net.minecraft.world.level.LevelAccessor level, BlockPos pos) {
-        if (!(level instanceof ServerLevel sl) || SIGHTS.isEmpty()) {
-            return;
-        }
-        for (UUID id : SIGHTS.keySet()) {
-            ServerPlayer player = sl.getServer().getPlayerList().getPlayer(id);
-            if (player == null || player.level() != sl) {
-                continue;
-            }
-            if (player.blockPosition().distManhattan(pos) <= RADIUS + 2) {
-                Sight sight = SIGHTS.get(id);
-                if (sight != null) {
-                    sight.dirty = true;
-                }
-            }
-        }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
@@ -239,15 +132,9 @@ public final class CircuitService {
         if (INTERFERENCES.isEmpty() || !(event.getLevel() instanceof ServerLevel level)) {
             return;
         }
-        Interference inf = getInterference(level.dimension(), event.getPos());
-        if (inf == null) {
-            return;
-        }
-        if (!inf.forceOn) {
+        if (getInterference(level.dimension(), event.getPos()) != null) {
             event.setCanceled(true);
-            return;
         }
-        applyForce(level, event.getPos(), inf.saved, true, false);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
@@ -263,36 +150,12 @@ public final class CircuitService {
 
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return;
-        }
-        stopSight(player, false);
-        restoreOwned(player.getUUID());
-    }
-
-    @SubscribeEvent
-    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player
-                && ModeService.getMode(player) == ResonanceMode.CIRCUIT) {
-            startSight(player);
-        }
-    }
-
-    @SubscribeEvent
-    public static void onChangeDim(PlayerEvent.PlayerChangedDimensionEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return;
-        }
-        stopSight(player, false);
-        if (ModeService.getMode(player) == ResonanceMode.CIRCUIT) {
-            startSight(player);
+        if (event.getEntity() instanceof ServerPlayer player) {
+            restoreOwned(player.getUUID());
         }
     }
 
     private static void tickInterferences(MinecraftServer server) {
-        if (INTERFERENCES.isEmpty()) {
-            return;
-        }
         long now = server.overworld().getGameTime();
         Iterator<Map.Entry<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>>> dims =
                 INTERFERENCES.entrySet().iterator();
@@ -303,17 +166,12 @@ public final class CircuitService {
             Iterator<Map.Entry<Long, Interference>> it = dimMap.entrySet().iterator();
             while (it.hasNext()) {
                 Interference inf = it.next().getValue();
-                if (level == null || !level.hasChunkAt(inf.pos)) {
+                if (now < inf.expireGameTime) {
                     continue;
                 }
-                if (now >= inf.expireGameTime) {
+                it.remove();
+                if (level != null && level.hasChunkAt(inf.pos)) {
                     restore(level, inf);
-                    it.remove();
-                    continue;
-                }
-                BlockState current = level.getBlockState(inf.pos);
-                if (!current.is(inf.saved.getBlock())) {
-                    it.remove();
                 }
             }
             if (dimMap.isEmpty()) {
@@ -327,20 +185,22 @@ public final class CircuitService {
         Iterator<Map.Entry<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>>> dims =
                 INTERFERENCES.entrySet().iterator();
         while (dims.hasNext()) {
-            ConcurrentHashMap<Long, Interference> dimMap = dims.next().getValue();
+            Map.Entry<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>> dimEntry = dims.next();
+            ConcurrentHashMap<Long, Interference> dimMap = dimEntry.getValue();
             Iterator<Map.Entry<Long, Interference>> it = dimMap.entrySet().iterator();
             while (it.hasNext()) {
                 Interference inf = it.next().getValue();
                 if (!inf.owner.equals(owner)) {
                     continue;
                 }
-                if (server != null) {
-                    ServerLevel level = server.getLevel(inf.dim);
-                    if (level != null && level.hasChunkAt(inf.pos)) {
-                        restore(level, inf);
-                    }
-                }
                 it.remove();
+                if (server == null) {
+                    continue;
+                }
+                ServerLevel level = server.getLevel(inf.dim);
+                if (level != null && level.hasChunkAt(inf.pos)) {
+                    restore(level, inf);
+                }
             }
             if (dimMap.isEmpty()) {
                 dims.remove();
@@ -357,135 +217,9 @@ public final class CircuitService {
         level.updateNeighborsAt(inf.pos, inf.saved.getBlock());
     }
 
-    private static void refreshSight(ServerPlayer player, Sight sight, boolean forceSend) {
-        ServerLevel level = player.serverLevel();
-        BlockPos origin = player.blockPosition();
-        int r = RADIUS;
-        int rSq = r * r;
-        int minX = origin.getX() - r;
-        int maxX = origin.getX() + r;
-        int minY = Math.max(origin.getY() - r, level.getMinBuildHeight());
-        int maxY = Math.min(origin.getY() + r, level.getMaxBuildHeight() - 1);
-        int minZ = origin.getZ() - r;
-        int maxZ = origin.getZ() + r;
-        List<CircuitOutlinePacket.Entry> found = new ArrayList<>(MAX_MARKS + 1);
-        int minCx = minX >> 4;
-        int maxCx = maxX >> 4;
-        int minCz = minZ >> 4;
-        int maxCz = maxZ >> 4;
-        int minCy = minY >> 4;
-        int maxCy = maxY >> 4;
-        ResourceKey<Level> dim = level.dimension();
-        boolean probeInterfere = !INTERFERENCES.isEmpty();
-        List<int[]> sections = new ArrayList<>();
-        for (int cx = minCx; cx <= maxCx; cx++) {
-            for (int cz = minCz; cz <= maxCz; cz++) {
-                if (!level.hasChunk(cx, cz)) {
-                    continue;
-                }
-                var chunk = level.getChunk(cx, cz);
-                for (int cy = minCy; cy <= maxCy; cy++) {
-                    int sectionIndex = chunk.getSectionIndexFromSectionY(cy);
-                    if (sectionIndex < 0 || sectionIndex >= chunk.getSectionsCount()) {
-                        continue;
-                    }
-                    var section = chunk.getSection(sectionIndex);
-                    if (section.hasOnlyAir() || !section.maybeHas(state -> state.is(CIRCUIT_TAG))) {
-                        continue;
-                    }
-                    int midX = (cx << 4) + 8;
-                    int midY = (cy << 4) + 8;
-                    int midZ = (cz << 4) + 8;
-                    int manh = Math.abs(midX - origin.getX())
-                            + Math.abs(midY - origin.getY())
-                            + Math.abs(midZ - origin.getZ());
-                    sections.add(new int[]{cx, cz, cy, manh});
-                }
-            }
-        }
-        sections.sort(Comparator.comparingInt(s -> s[3]));
-        boolean dense = false;
-        scan:
-        for (int[] sect : sections) {
-            if (found.size() > MAX_MARKS) {
-                dense = true;
-                break;
-            }
-            int cx = sect[0];
-            int cz = sect[1];
-            int cy = sect[2];
-            var chunk = level.getChunk(cx, cz);
-            int sectionIndex = chunk.getSectionIndexFromSectionY(cy);
-            if (sectionIndex < 0 || sectionIndex >= chunk.getSectionsCount()) {
-                continue;
-            }
-            var section = chunk.getSection(sectionIndex);
-            int x0 = Math.max(minX, cx << 4);
-            int x1 = Math.min(maxX, (cx << 4) + 15);
-            int y0 = Math.max(minY, cy << 4);
-            int y1 = Math.min(maxY, (cy << 4) + 15);
-            int z0 = Math.max(minZ, cz << 4);
-            int z1 = Math.min(maxZ, (cz << 4) + 15);
-            for (int y = y0; y <= y1; y++) {
-                int ly = y & 15;
-                int dy = y - origin.getY();
-                for (int z = z0; z <= z1; z++) {
-                    int lz = z & 15;
-                    int dz = z - origin.getZ();
-                    for (int x = x0; x <= x1; x++) {
-                        int dx = x - origin.getX();
-                        if (dx * dx + dy * dy + dz * dz > rSq) {
-                            continue;
-                        }
-                        BlockState state = section.getBlockState(x & 15, ly, lz);
-                        if (!state.is(CIRCUIT_TAG)) {
-                            continue;
-                        }
-                        BlockPos pos = new BlockPos(x, y, z);
-                        Interference inf = probeInterfere
-                                ? getInterference(dim, BlockPos.asLong(x, y, z))
-                                : null;
-                        found.add(new CircuitOutlinePacket.Entry(pos, isWorking(level, pos, state, inf)));
-                        if (found.size() > MAX_MARKS) {
-                            dense = true;
-                            break scan;
-                        }
-                    }
-                }
-            }
-        }
-        if (dense) {
-            if (found.size() > MAX_MARKS) {
-                found.subList(MAX_MARKS, found.size()).clear();
-            }
-            if (!sight.denseWarned) {
-                ActionBars.show(player, Component.translatable("ui.static_resonance.circuit_dense"));
-                sight.denseWarned = true;
-            }
-        }
-        Map<BlockPos, Boolean> next = new HashMap<>(found.size());
-        for (CircuitOutlinePacket.Entry entry : found) {
-            next.put(entry.pos(), entry.working());
-        }
-        if (!forceSend && next.equals(sight.marks)) {
-            return;
-        }
-        sight.marks = next;
-        sendSight(player, sight);
-    }
-
-    private static void sendSight(ServerPlayer player, Sight sight) {
-        List<CircuitOutlinePacket.Entry> entries = new ArrayList<>(sight.marks.size());
-        for (Map.Entry<BlockPos, Boolean> e : sight.marks.entrySet()) {
-            entries.add(new CircuitOutlinePacket.Entry(e.getKey(), e.getValue()));
-        }
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new CircuitOutlinePacket(false, entries));
-    }
-
     @Nullable
     private static BlockPos lookCircuit(ServerPlayer player) {
-        HitResult hit = player.pick(RADIUS, 1.0f, false);
+        HitResult hit = player.pick(lookRange(), 1.0f, false);
         if (hit.getType() != HitResult.Type.BLOCK) {
             return null;
         }
@@ -509,7 +243,7 @@ public final class CircuitService {
         return true;
     }
 
-    static boolean isWorking(Level level, BlockPos pos, BlockState state, @Nullable Interference inf) {
+    private static boolean isWorking(Level level, BlockPos pos, BlockState state, @Nullable Interference inf) {
         if (inf != null) {
             return inf.forceOn;
         }
@@ -537,48 +271,12 @@ public final class CircuitService {
         if (state.hasProperty(BlockStateProperties.POWERED)) {
             return state.getValue(BlockStateProperties.POWERED);
         }
-        if (state.is(Blocks.REDSTONE_BLOCK)) {
-            return true;
-        }
         return level.hasNeighborSignal(pos);
     }
 
-    private static boolean alreadyForced(BlockState state, boolean on) {
-        if (state.getBlock() instanceof RedStoneWireBlock && state.hasProperty(RedStoneWireBlock.POWER)) {
-            return state.getValue(RedStoneWireBlock.POWER) == (on ? 15 : 0);
-        }
-        if (state.is(Blocks.REDSTONE_BLOCK)) {
-            return true;
-        }
-        if (state.hasProperty(BlockStateProperties.LIT)
-                && (state.getBlock() instanceof RedstoneTorchBlock || state.getBlock() instanceof RedstoneLampBlock
-                || state.is(Blocks.REDSTONE_TORCH) || state.is(Blocks.REDSTONE_WALL_TORCH)
-                || state.is(Blocks.REDSTONE_LAMP))) {
-            return state.getValue(BlockStateProperties.LIT) == on;
-        }
-        if (state.hasProperty(BlockStateProperties.OPEN)
-                && (state.is(Blocks.IRON_DOOR) || state.is(Blocks.IRON_TRAPDOOR))) {
-            return state.getValue(BlockStateProperties.OPEN) == on;
-        }
-        if (state.getBlock() instanceof HopperBlock && state.hasProperty(HopperBlock.ENABLED)) {
-            return state.getValue(HopperBlock.ENABLED) == !on;
-        }
-        if (state.hasProperty(BlockStateProperties.POWERED)) {
-            return state.getValue(BlockStateProperties.POWERED) == on;
-        }
-        if (state.hasProperty(BlockStateProperties.POWER)) {
-            return state.getValue(BlockStateProperties.POWER) == (on ? 15 : 0);
-        }
-        return false;
-    }
-
-    private static void applyForce(ServerLevel level, BlockPos pos, BlockState original,
-                                   boolean on, boolean firstPulse) {
+    private static void applyForce(ServerLevel level, BlockPos pos, BlockState original, boolean on) {
         BlockState state = level.getBlockState(pos);
         if (!state.is(original.getBlock())) {
-            return;
-        }
-        if (!firstPulse && alreadyForced(state, on)) {
             return;
         }
         Block block = state.getBlock();
@@ -590,9 +288,6 @@ public final class CircuitService {
             if (on) {
                 level.updateNeighborsAt(pos, block);
             }
-            return;
-        }
-        if (state.is(Blocks.REDSTONE_BLOCK)) {
             return;
         }
         if (state.hasProperty(BlockStateProperties.LIT)
@@ -630,14 +325,14 @@ public final class CircuitService {
             }
             return;
         }
-        if (block instanceof NoteBlock && firstPulse && on) {
+        if (block instanceof NoteBlock && on) {
             level.blockEvent(pos, block, 0, 0);
             return;
         }
         if (block instanceof ObserverBlock && state.hasProperty(BlockStateProperties.POWERED)) {
-            if (firstPulse && on) {
+            if (on) {
                 level.setBlock(pos, state.setValue(BlockStateProperties.POWERED, true), Block.UPDATE_ALL);
-            } else if (!on && state.getValue(BlockStateProperties.POWERED)) {
+            } else if (state.getValue(BlockStateProperties.POWERED)) {
                 level.setBlock(pos, state.setValue(BlockStateProperties.POWERED, false), Block.UPDATE_CLIENTS);
             }
             return;
@@ -646,7 +341,7 @@ public final class CircuitService {
             if (state.getValue(BlockStateProperties.TRIGGERED) != on) {
                 level.setBlock(pos, state.setValue(BlockStateProperties.TRIGGERED, on), Block.UPDATE_CLIENTS);
             }
-            if (firstPulse && on) {
+            if (on) {
                 level.scheduleTick(pos, block, 1);
             }
             return;
@@ -691,14 +386,18 @@ public final class CircuitService {
         INTERFERENCES.computeIfAbsent(dim, key -> new ConcurrentHashMap<>()).put(packed, inf);
     }
 
-    private static final class Sight {
-        private Map<BlockPos, Boolean> marks = new HashMap<>();
-        private BlockPos lastOrigin;
-        private boolean dirty = true;
-        private boolean denseWarned;
+    private static void dropQuiet(ResourceKey<Level> dim, long packed) {
+        ConcurrentHashMap<Long, Interference> dimMap = INTERFERENCES.get(dim);
+        if (dimMap == null) {
+            return;
+        }
+        dimMap.remove(packed);
+        if (dimMap.isEmpty()) {
+            INTERFERENCES.remove(dim, dimMap);
+        }
     }
 
-    static final class Interference {
+    private static final class Interference {
         private final UUID owner;
         private final ResourceKey<Level> dim;
         private final BlockPos pos;

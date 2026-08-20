@@ -3,6 +3,7 @@
 > **Purpose:** What this Origin **actually implements right now**.  
 > **Update this file** whenever you add/change/remove powers, Java services, or keybind UX.  
 > Do **not** invent skills from design docs alone — match this list first.  
+> Quoted costs **must** equal `GameplayDefaults` / `SrConfig` defaults, not historical datapack numbers. A world’s `static_resonance-common.toml` still wins at runtime.  
 >  
 > Thai player-facing summary: [`AI_ABILITIES_CATALOG_TH.md`](./AI_ABILITIES_CATALOG_TH.md)
 
@@ -12,9 +13,9 @@
 | MC / Loader | 1.20.1 Forge |
 | Depends | Origins (Forge) + Apoli |
 | Origin ID | `static_resonance:static_resonance` |
-| Catalog version | **2.2.0** |
-| Last updated | **2026-08-16** |
-| Status | Playable: 4 modes + Faraday Cage + Control field/target + select-only radial |
+| Catalog version | **2.6.0** |
+| Last updated | **2026-08-20** |
+| Status | Playable: 5 modes (Dust, Sense, Control, Aegis, Circuit) + always-on climb + Faraday Cage + Control field/target + select-only radial. Cast is **F**. Balance numbers are Forge COMMON config defaults (`GameplayDefaults` → `config/static_resonance-common.toml`; Cloth Config opens them from Mods → Config). |
 
 ---
 
@@ -22,18 +23,18 @@
 
 | Input | Key | Behavior |
 |-------|-----|----------|
-| Primary cast | **G** (`key.origins.primary_active`) | Cast **current mode** skill only |
+| Primary cast | **F** (`key.static_resonance.cast` → `CastPacket`) | Cast **current mode** skill only |
 | Mode radial | **Hold R** (`key.static_resonance.mode_menu`) | Open 5-wedge wheel |
-| Mode cycle | **Tap R** | Cycle mode 0→1→2→3→0 |
+| Mode cycle | **Tap R** | Cycle mode 0→1→2→3→4→0 |
 ### Radial UX (authoritative)
 
 | Action | Result |
 |--------|--------|
 | **LMB** on combat wedge | **Select mode only** (`SetModePacket`) — never spends charge, never casts |
-| **LMB** on Faraday / Control | Select mode + open **sub-panel** (emergency / target·field) |
+| **LMB** on Faraday / Control / Dust / Sense | Select mode + open **sub-panel** (emergency / target·field / burst·zone / scan filters) |
 | **Release R** (no prior LMB commit) | Select hovered combat mode |
-| **G** | Cast skill of current mode |
-| Grey wedges by cast cost? | **No** — radial is select-only; cost is for G |
+| **F** | Cast skill of current mode |
+| Grey wedges by cast cost? | **No** — radial is select-only; cost is for F |
 
 Java: `RadialModeMenu`, `RadialModeMenuRenderer`, `RadialWedge`  
 Packets: `SetModePacket`, `SetControlStylePacket`, `ToggleFaradayEmergencyPacket`
@@ -44,16 +45,17 @@ While radial is open: mouse attack/use cancelled (`InteractionKeyMappingTriggere
 
 ## Mode index
 
-Resource: `static_resonance:systems/mode` · **0–3**, start **0**, HUD hidden
+Resource: `static_resonance:systems/mode` · **0–4**, start **0**, HUD hidden
 
-| Index | Mode (lang) | Primary power | Radial note |
-|------:|-------------|---------------|-------------|
-| 0 | Dust | `mode/dust_curtain` | LMB selects immediately |
-| 1 | Sense | `mode/static_scan` | LMB selects immediately |
-| 2 | Control | `mode/magnetic_lock` | LMB → sub: Single Target / Field |
-| 3 | Overcharge / **Aegis** | `mode/faraday_cage` | LMB → sub: Faraday emergency arm |
+| Index | Mode (lang) | Cast owner | Radial note |
+|------:|-------------|------------|-------------|
+| 0 | Dust | Java `DustService` | LMB → sub: burst / zone |
+| 1 | Sense | Java `ScanOutlineService` | LMB → sub: scan filters |
+| 2 | Control | Java `ControlService` | LMB → sub: Single Target / Field |
+| 3 | Overcharge / **Aegis** | Java `FaradayService` | LMB → sub: Faraday emergency arm |
+| 4 | Circuit | Java `CircuitService` (F look-toggle) | LMB selects immediately; idle Circuit is free |
 
-**Not live as mode-3 cast:** `mode/pulse_explosion` (stub empty JSON kept for old refs).
+**Not live as a cast:** Pulse Explosion (design-only in `vfx-specs/`; no power JSON on disk).
 
 ---
 
@@ -66,14 +68,14 @@ Resource: `static_resonance:systems/mode` · **0–3**, start **0**, HUD hidden
 | Start | 40 |
 | HUD | **yes** (only resource bar intended to show) |
 
-Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars do not stack.
+Mode skills are Java, not Origins active powers, so they do not add extra Origins HUD bars. Only `systems/charge` should render.
 
 ### Charge tick
 
 | Field | Value |
 |-------|--------|
-| Power ID | `systems/charge_tick` |
-| Interval | 35 ticks |
+| Owner | Java `MotionHarvestService` (`SrConfig.charge`) |
+| Interval | **35** ticks (default) |
 | Wet | charge **−3** + bubbles |
 | Dry + not full | charge **+2** |
 
@@ -81,16 +83,16 @@ Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars
 
 | Field | Value |
 |-------|--------|
-| Power ID | `systems/motion_charge` |
-| Interval | 20 ticks |
-| Range | `#motion_sources`, ~0.5–5 |
-| Reward | +1 or +2 charge from nearby moving life |
+| Owner | Java `MotionHarvestService` (`SrConfig.charge`) |
+| Interval | 20 ticks (default) |
+| Range | `#motion_sources`, ~0.5–5 (default) |
+| Reward | +1…+4 charge from nearby moving life |
 
 ### Other systems resources
 
 | Power ID | Role |
 |----------|------|
-| `systems/scan_active` / `scan_radius` / `scan_step_*` / `scan_abort` | Expanding Static Scan |
+| `systems/scan_active` / `scan_radius` / `scan_filter` / `scan_abort` | Static Scan toggle + radius snapshot + filter + abort net |
 | `systems/control_style` | 0 = target, 1 = field |
 | `systems/field_active` | Mirror of Java field session |
 | `systems/faraday_emergency` | 0/1 auto Faraday if a hit would leave HP below 2 |
@@ -104,8 +106,7 @@ Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars
 | Field | Value |
 |-------|--------|
 | Free | **Yes** — changing mode never spends charge |
-| Server | `ModeService.setMode` → Apoli mode + `function static_resonance:mode/{dust,sense,control,overcharge}` feedback only |
-| Legacy | `active/switch_mode.json` **not on origin** |
+| Server | `ModeService.setMode` → Apoli mode + `function static_resonance:mode/{dust,sense,control,overcharge,circuit}` feedback only |
 
 ---
 
@@ -113,12 +114,11 @@ Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars
 
 | Field | Value |
 |-------|--------|
-| Power ID | `mode/dust_curtain` |
-| Cost | **20** on cast |
-| Cooldown | 25 ticks |
-| Function | `dust/curtain` |
-| Targets | `#static_resonance:affectable` ~7 blocks |
-| Effects | Blindness 4s, Slowness II 3s |
+| Authority | Java `DustService` (`systems/dust_style` 0 = burst, 1 = zone) |
+| Burst cost | **5** (`GameplayDefaults.DUST_BURST_COST`) on a look-target hit; miss spends **0** |
+| Zone cost | **10** (`GameplayDefaults.DUST_ZONE_COST`) to plant a smoke zone |
+| Zone | Radius **6**, lifetime **200** ticks (snapshotted on place) |
+| Burst effects | Blindness 4s, Slowness II 3s on the looked-at living entity |
 
 ---
 
@@ -126,12 +126,13 @@ Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars
 
 | Field | Value |
 |-------|--------|
-| Power ID | `mode/static_scan` (cast via Java `ScanOutlineService.toggle`) |
+| Authority | Java `ScanOutlineService.toggle` |
 | Cost | **8** once on start (Java). No per-tick drain |
-| Toggle | F start / F stop; abort on leaving Sense |
-| Radius | **32** — one server AABB pulse |
-| Expand | Client-only reveal 0→32 over 1s |
-| Reveal | Private see-through boxes: **green** safe, **white** players, **red** hostiles |
+| Toggle | **F** start / F stop; abort on leaving Sense |
+| Radius | **32** default (`GameplayDefaults.SCAN_RADIUS`, config 1–128) — one server AABB pulse. A world’s toml wins if it differs. |
+| Cap | **128** marks |
+| Expand | Client-only reveal 0→radius over 1s |
+| Reveal | Private colored boxes: **green** safe, **white** players, **red** hostiles. See-through walls default **off** (`visuals.seeThroughWalls`; server COMMON file is opt-in) |
 
 ---
 
@@ -139,18 +140,16 @@ Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars
 
 | Field | Value |
 |-------|--------|
-| Power ID | `mode/magnetic_lock` |
-| Key | primary |
+| Authority | Java `ControlService` (`systems/control_style`) |
 | Styles | **Target** (`control_style` 0) · **Field** (`control_style` 1) — set from radial sub |
-| Cooldown | 30 ticks |
 
 #### Target style
 
 | Field | Value |
 |-------|--------|
 | Command | `sr_internal lock_target` only (no Origins `change_resource`) |
-| Authority | `ControlService.lockNearestTarget` |
-| Cost | **28** spent in Java **only on hit** |
+| Authority | `ControlService.lockLookTarget` |
+| Cost | **15** spent in Java **only on hit** (`GameplayDefaults.CONTROL_TARGET_COST`) |
 | Miss / no living | **0** charge + miss feedback |
 | Range | look / visible `LivingEntity` up to **64** blocks (ray hit, else view-cone + line-of-sight) |
 | Effects | Slowness amp **255** ~5s, Mining Fatigue II, Glowing; soft pull-down; **held weapon frozen** (no hotbar snap loop) |
@@ -173,35 +172,26 @@ Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars
 
 | Field | Value |
 |-------|--------|
-| Power ID | `mode/faraday_cage` |
 | Command | `sr_internal faraday_manual` |
 | Authority | `FaradayService.tryActivate(MANUAL)` |
 | Cost | **50** (requires charge ≥50; **never goes negative**) |
-| Duration | score `sr_faraday` ~90s (datapack tick down) |
-| Effects | Resistance / fire resist refresh; catch projectiles (datapack); **repel** living in ~**3** blocks (`REPEL_RADIUS`) |
-| Particles | Soft **aura** around body (`faraday/particles`) — not hex cage lattice |
-| Emergency | Radial sub toggle → `ToggleFaradayEmergencyPacket`. Java `LivingHurtEvent`/`LivingDamageEvent` **HIGHEST** predicts remaining HP+absorption; if **< 2.0** raises cage (no spend, **ignores cage cooldown**), caps this hit, intercepts catchable shots. Origins `prevent_death` is a last-ditch net. |
+| Duration | `CAGE_EXPIRE_AT` **600** ticks / 30s default (`SrConfig.faraday.durationTicks`; cooldown **2400** / 120s). Leftover `sr_faraday` / `sr_faraday_cd` are HUD/datapack mirrors (arm / expiry / 0.5 s), not the clock. |
+| Effects | Resistance / fire resist refresh; catch projectiles; **repel** living in **10** blocks default (`SrConfig.faraday.repelRadius`) |
+| Particles | Soft **aura** from Java (`tickCageFx` / `tickAura`) — not a hex lattice |
+| Emergency | Radial sub toggle → `ToggleFaradayEmergencyPacket`. Java `LivingDamageEvent` **HIGHEST** (not idle-gated) predicts remaining HP; if below config floor raises cage (no spend, **ignores cage cooldown**), caps this hit, intercepts catchable shots. Origins `prevent_death` is a last-ditch net. |
 | Active set | `FaradayService.ACTIVE_CAGES` — tick repel only for active UUIDs (not full player list when empty) |
 
 ---
 
-### 6. Redstone Sight (mode 4 / Circuit)
+### 6. Circuit Flip (mode 4 / Circuit)
 
 | Field | Value |
 |-------|--------|
-| Select | Entering Circuit (radial / tap R) starts free local outlines of `#circuit` in **16** |
-| Cost | **0** to see · **8** only when F flips the aimed piece |
-| F | Force on/off that piece for 8s. Miss (no look target) spends nothing and does **not** close sight |
-| Leave mode | Outlines clear |
-| Client | See-through line boxes (`SeeThroughRender`); aimed piece highlighted |
-
----
-
-### 7. No-charge feedback
-
-| Power ID | Role |
-|----------|------|
-| `active/no_charge_feedback` | Primary when can’t cast mode skill |
+| Select | Entering Circuit does **nothing** on the server (no scan, no packets) |
+| Cost | **8** when F flips the aimed `#circuit` piece |
+| F | One `player.pick` (`lookRange` default **16**). Force on/off that piece for 8s. Neighbor graph pulses once; later vanilla notifies on that pos are canceled. Miss spends nothing |
+| Leave mode / logout | Owned forced pieces restore immediately |
+| Client | No Circuit outlines. Sense still uses `SeeThroughRender` |
 
 ---
 
@@ -210,23 +200,24 @@ Mode skill powers use `"hud_render": { "should_render": false }` so Origins bars
 | Power | Effect |
 |-------|--------|
 | `passive/charged_stability` | Charge ≥50 → knockback resistance |
+| `passive/static_footing` | Always-on knockback resistance |
 | `passive/faraday_emergency` | Armed flag + `prevent_death` backup. Predict/cap lives in `FaradayService` |
-| `weakness/water_vulnerability` | Wet: +25% damage taken + charge leak via charge_tick |
+| `weakness/water_vulnerability` | Wet: +25% damage taken + charge leak via Java regen |
+| Wall climb (Java) | `ClimbService` — no Origins power; no charge |
 
 ---
 
 ## Full power list on origin
 
-Order in `origins/static_resonance.json` (approximate):
+Order in `origins/static_resonance.json`:
 
-1. `systems/charge`, `mode`, `charge_tick`
-2. Scan stack: `scan_active`, `scan_radius`, `scan_step_1..4`, `scan_abort`
-3. `systems/motion_charge`
-4. Mode skills: `dust_curtain`, `static_scan`, `magnetic_lock`, `faraday_cage`
-5. `systems/control_style`, `field_active`, `faraday_emergency`
-6. `systems/faraday_tick`, `passive/faraday_emergency`
-7. `active/no_charge_feedback`
-8. `passive/charged_stability`, `weakness/water_vulnerability`
+1. `systems/charge`, `mode`
+2. Scan: `scan_active`, `scan_radius`, `scan_abort`
+3. `systems/control_style`, `dust_style`, `scan_filter`, `field_active`, `faraday_emergency`
+4. `passive/faraday_emergency`, `charged_stability`, `static_footing`
+5. `weakness/water_vulnerability`
+
+Mode skills and climb are **Java** (`CastService` / `ClimbService`), not Origins active powers. Regen is Java (`MotionHarvestService`); there is no granted `charge_tick` power.
 
 ---
 
@@ -236,7 +227,7 @@ Order in `origins/static_resonance.json` (approximate):
 |------------|---------|
 | `faraday_manual` / `faraday_emergency` | `FaradayService` |
 | `field_start` / `field_stop` | `ControlService` |
-| `lock_target` | `ControlService.lockNearestTarget` (spend + apply) |
+| `lock_target` | `ControlService.lockLookTarget` (spend + apply) |
 
 ---
 
@@ -257,10 +248,13 @@ Order in `origins/static_resonance.json` (approximate):
 ```
 com.staticresonance
   client/ui/     RadialModeMenu, RadialModeMenuRenderer, RadialWedge
-  mode/          ModeService, ControlService, FaradayService,
+  mode/          ModeService, CastService, ControlService, FaradayService,
+                 CircuitService, ClimbService, ScanOutlineService,
                  ApoliResources, ResonanceMode, SrScoreboards
-  network/       SetModePacket, SetControlStylePacket,
-                 ToggleFaradayEmergencyPacket
+  logic/         ChargeBuckets, ExpireClock, MarkPrune, GameplayDefaults (no Minecraft)
+  network/       CastPacket, SetModePacket, SetControlStylePacket,
+                 ToggleFaradayEmergencyPacket, ScanOutlinePacket
+                 (no CircuitOutlinePacket — Circuit is look-toggle only)
   command/       ModCommands (sr_internal)
 ```
 
@@ -268,11 +262,12 @@ com.staticresonance
 
 ## Not implemented / design-only
 
-- Pulse Explosion as live mode-3 cast (JSON stub only)
+- Pulse Explosion as a live cast (VFX design-only; not shipped)
 - Full progression trees (Dust Wall, Treasure Scan, Dash, etc.)
 - Custom electric damage type
 - Full 3D mesh VFX (vanilla particles stand-in)
-- Static Climb / spider wall climb (removed)
+
+**Live, not a mode:** `ClimbService` — always-on wall climb while an origin player is sliding on a wall. No charge. Client + server (prediction).
 
 ---
 
@@ -282,17 +277,17 @@ com.staticresonance
 data/static_resonance/
   origins/static_resonance.json
   powers/
-    systems/{charge,mode,charge_tick,scan_*,motion_charge,
-             control_style,field_active,faraday_*}
-    mode/{dust_curtain,static_scan,magnetic_lock,faraday_cage,pulse_explosion}
-    active/{no_charge_feedback,switch_mode}
-    passive/{charged_stability,faraday_emergency}
+    systems/{charge,mode,scan_active,scan_radius,scan_abort,
+             scan_filter,control_style,dust_style,field_active,faraday_emergency}
+    passive/{charged_stability,faraday_emergency,static_footing}
     weakness/water_vulnerability.json
   functions/
-    faraday/{activate,deactivate,particles,tick_*,...}
-    control/{lock_hit,lock_miss,lock_apply}
-    dust/, sense/, mode/, systems/, util/
+    faraday/{activate,deactivate,emergency_fx,release_projectile}
+    sense/{scan_start,scan_stop}
+    mode/{dust,sense,control,overcharge,circuit}
+    init.mcfunction
   tags/entity_types/{affectable,motion_sources,projectiles}
+  tags/blocks/circuit.json
 ```
 
 ---
@@ -300,17 +295,20 @@ data/static_resonance/
 ## AI update protocol
 
 1. Change code / datapack first  
-2. Update **this file** + **TH catalog** (costs, UX, authority)  
+2. If a default number changes, change `GameplayDefaults` first, then `SrConfig`, then **this file** + **TH catalog**  
 3. VFX changes → `vfx-specs/`  
 4. Catalog version + Last updated  
+
+Quoted costs must equal `GameplayDefaults` / `SrConfig` defaults, not historical datapack numbers.
 
 ### Checklist
 
 ```
-- [ ] Mode index / primary power IDs
+- [ ] Mode index / cast owners
 - [ ] Charge min/max (0–100)
+- [ ] Costs equal GameplayDefaults
 - [ ] Who spends charge (Java vs Origins) — single authority
-- [ ] Radial = select only; G/Secondary = pay
+- [ ] Radial = select only; F = pay
 - [ ] Faraday / Control dual styles
 - [ ] Catalog version / date
 ```
@@ -319,7 +317,7 @@ data/static_resonance/
 
 ## Quick summary
 
-**Static Resonance** = charge **0–100**, 4 modes.  
-**Hold R** = select skill/mode (free) · **G** = cast.  
-**Live casts:** Dust Curtain, Static Scan, Magnetic Lock (target 28 / field 40, Java spend), Faraday Cage (50 + aura + repel).  
-**Not live:** Pulse Explosion as mode skill, climb, upgrade trees, 3D VFX.
+**Static Resonance** = charge **0–100**, 5 modes + always-on climb.  
+**Hold R** = select skill/mode (free) · **F** = cast.  
+**Live casts:** Dust Curtain (burst 5 / zone 10), Static Scan (8, r=32 default), Magnetic Lock (target 15 / field 40, Java spend), Faraday Cage (50 + aura + repel), Circuit Flip (8, one looked-at piece).  
+**Not live:** Pulse Explosion as a cast, upgrade trees, 3D VFX.

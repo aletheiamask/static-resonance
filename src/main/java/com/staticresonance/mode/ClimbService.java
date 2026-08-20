@@ -1,6 +1,7 @@
 package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
+import com.staticresonance.config.SrConfig;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -14,7 +15,6 @@ import net.minecraftforge.fml.common.Mod;
  */
 @Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID)
 public final class ClimbService {
-    private static final double CLIMB_SPEED = 0.18;
     private static final int SPARK_INTERVAL = 8;
 
     private ClimbService() {
@@ -33,11 +33,12 @@ public final class ClimbService {
             return;
         }
         Vec3 m = player.getDeltaMovement();
-        if (m.y < CLIMB_SPEED) {
-            player.setDeltaMovement(m.x, CLIMB_SPEED, m.z);
+        double climb = SrConfig.COMMON.climb.climbSpeed.get();
+        if (m.y < climb) {
+            player.setDeltaMovement(m.x, climb, m.z);
+            player.hurtMarked = true;
         }
         player.fallDistance = 0.0f;
-        player.hurtMarked = true;
         if (!player.level().isClientSide
                 && player.tickCount % SPARK_INTERVAL == 0
                 && player.level() instanceof ServerLevel level) {

@@ -9,10 +9,9 @@
       "compare_to": 1
     },
     "entity_action": {
-      "type": "origins:execute_command",
-      "command": "sr_internal faraday_emergency"
+      "type": "origins:nothing"
     }
   },
   "name": "Faraday Protocol",
-  "description": "Emergency containment when a hit would leave you below 2 health. Toggle from the mode radial (hold R → top skill → click panel)."
+  "description": "Emergency containment when a hit would leave you below the configured health floor. Toggle from the mode radial (hold R → top skill → click panel)."
 }

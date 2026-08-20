@@ -10,7 +10,7 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.UUID;
 
 /**
- * One Origins primary (G) → current mode skill. Avoids stacking four G powers in Origins HUD.
+ * F ({@code CastPacket}) → current mode skill. Avoids stacking Origins primary powers in the HUD.
  */
 @Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID)
 public final class CastService {

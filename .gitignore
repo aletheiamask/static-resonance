@@ -20,6 +20,10 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Local secrets — never commit
+.modrinth-token
+_publish_modrinth.py
+
 # Generated
 src/generated/
 

@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.staticresonance.client.ui.RadialModeMenu.Layer;
 import com.staticresonance.client.ui.RadialModeMenu.SubHover;
+import com.staticresonance.config.SrConfig;
 import com.staticresonance.mode.ControlService;
 import com.staticresonance.mode.DustService;
 import com.staticresonance.mode.ResonanceMode;
@@ -226,7 +227,15 @@ public final class RadialModeMenuRenderer {
                     (int) cx, (int) (cy - 4), hover == SubHover.BACK ? 0xFFFFFFFF : 0xFFB0B0B0);
 
             Component title = Component.translatable("ui.static_resonance.faraday_panel_title");
-            graphics.drawCenteredString(font, title, (int) cx, (int) (cy - outerBase - 22), 0xFFE0F7FF);
+            graphics.drawCenteredString(font, title, (int) cx, (int) (cy - outerBase - 34), 0xFFE0F7FF);
+            graphics.drawCenteredString(font, Component.translatable(
+                    "ui.static_resonance.faraday_panel_line1",
+                    ticksToSec(SrConfig.COMMON.faraday.durationTicks.get())),
+                    (int) cx, (int) (cy - outerBase - 22), 0xFFB0BEC5);
+            graphics.drawCenteredString(font, Component.translatable(
+                    "ui.static_resonance.faraday_panel_line2",
+                    SrConfig.COMMON.faraday.manualCost.get()),
+                    (int) cx, (int) (cy - outerBase - 12), 0xFFB0BEC5);
 
             Component state = Component.translatable(armed
                     ? "ui.static_resonance.faraday_emergency_armed"
@@ -291,9 +300,13 @@ public final class RadialModeMenuRenderer {
             graphics.drawString(font, left, (int) (cx - outerBase - 10 - lw), (int) (cy - 4), leftColor, ht > 0.35f);
             graphics.drawString(font, right, (int) (cx + outerBase + 10), (int) (cy - 4), rightColor, hf > 0.35f);
 
-            Component hint = Component.translatable(targetOn
-                    ? "ui.static_resonance.control_target_hint"
-                    : "ui.static_resonance.control_field_hint");
+            Component hint = targetOn
+                    ? Component.translatable("ui.static_resonance.control_target_hint",
+                            SrConfig.COMMON.control.targetCost.get())
+                    : Component.translatable("ui.static_resonance.control_field_hint",
+                            SrConfig.COMMON.control.fieldMaxRadius.get(),
+                            SrConfig.COMMON.control.fieldCost.get(),
+                            ticksToSec(SrConfig.COMMON.control.fieldDurationTicks.get()));
             graphics.drawCenteredString(font, hint, (int) cx, (int) (cy + outerBase + 12), 0xFFCE93D8);
 
             float tAlly = hover == SubHover.CONTROL_ALLY ? 1f : 0f;
@@ -352,9 +365,12 @@ public final class RadialModeMenuRenderer {
                 burstOn ? 0xFFAAFFAA : 0xFF888888, hb > 0.35f);
         graphics.drawString(font, right, (int) (cx + outerBase + 10), (int) (cy - 4),
                 zoneOn ? 0xFFAAFFAA : 0xFF888888, hz > 0.35f);
-        graphics.drawCenteredString(font, Component.translatable(burstOn
-                        ? "ui.static_resonance.dust_burst_hint"
-                        : "ui.static_resonance.dust_zone_hint"),
+        graphics.drawCenteredString(font, burstOn
+                        ? Component.translatable("ui.static_resonance.dust_burst_hint",
+                                SrConfig.COMMON.dust.burstCost.get())
+                        : Component.translatable("ui.static_resonance.dust_zone_hint",
+                                SrConfig.COMMON.dust.zoneCost.get(),
+                                ticksToSec(SrConfig.COMMON.dust.zoneDurationTicks.get())),
                 (int) cx, (int) (cy + outerBase + 12), 0xFFD7CCC8);
     }
 
@@ -448,7 +464,7 @@ public final class RadialModeMenuRenderer {
         int hintColor = lerpArgb(withAlpha(0x2A2A2A, 180), withAlpha(0xE0E0E0, 230), hoverT);
 
         Component skill = Component.translatable(wedge.skillLangKey());
-        Component hint = Component.translatable(wedge.hintLangKey());
+        Component hint = modeHint(wedge.mode());
         Component subHint = null;
         if (wedge.hasSubMenu()) {
             subHint = Component.translatable("ui.static_resonance.skill_has_sub");
@@ -511,6 +527,24 @@ public final class RadialModeMenuRenderer {
             int shy = hy + 10;
             graphics.drawString(font, subHint, shx, shy, withAlpha(0xFFE082, (int) (200 * hoverT)), false);
         }
+    }
+
+    private static Component modeHint(ResonanceMode mode) {
+        SrConfig.Common c = SrConfig.COMMON;
+        return switch (mode) {
+            case DUST -> Component.translatable(mode.hintLangKey(),
+                    c.dust.burstCost.get(), c.dust.zoneCost.get());
+            case SENSE -> Component.translatable(mode.hintLangKey(), c.sense.scanCost.get());
+            case CONTROL -> Component.translatable(mode.hintLangKey(),
+                    c.control.targetCost.get(), c.control.fieldCost.get());
+            case OVERCHARGE -> Component.translatable(mode.hintLangKey(),
+                    c.faraday.manualCost.get(), ticksToSec(c.faraday.durationTicks.get()));
+            case CIRCUIT -> Component.translatable(mode.hintLangKey(), c.circuit.toggleCost.get());
+        };
+    }
+
+    private static int ticksToSec(int ticks) {
+        return Math.max(0, ticks / 20);
     }
 
     private static void drawWedge(GuiGraphics graphics, float cx, float cy, float inner, float outer,

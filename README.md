@@ -8,9 +8,10 @@ Minecraft **1.20.1 Forge** content mod that adds the **Static Resonance** origin
 
 **License: All Rights Reserved.** You may play this mod. You may not copy, reupload, rebrand, or ship it in another project without written permission from Pipothai. See `LICENSE`.
 
-Gameplay is **data-driven** (Apoli/Origins JSON + mcfunctions). Java is a thin shell so 3D VFX and radial UI can be added later without rewriting the origin.
+Gameplay is a **hybrid**: Origins/Apoli for mode gates and resource bars, **Java services** for spend/apply so charge cannot desync. The skill wheel and outlines are Java.
 
 เอกสารอยู่ที่ [`docs/README.md`](docs/README.md) — เริ่มจากแคตตาล็อกสกิล ถ้าขัดกับเอกสารออกแบบให้เชื่อแคตตาล็อก  
+ก่อนขึ้นเลขเวอร์ชันใช้ [`docs/PLAYTEST.md`](docs/PLAYTEST.md)  
 สเปกวงล้อและ VFX อยู่ที่ `vfx-specs/`
 
 ---
@@ -30,25 +31,25 @@ Gameplay is **data-driven** (Apoli/Origins JSON + mcfunctions). Java is a thin s
 
 | Action | Key | Behavior |
 |--------|-----|----------|
-| **Mode radial** | **Hold R** | Open skill wheel → aim → release to select |
-| **Skill options** | **RMB** on wheel | Sub-wheel (Faraday emergency / Control style) |
+| **Mode radial** | **Hold R** | Open 5-wedge wheel → aim → release to select |
+| **Skill options** | **LMB** on Faraday / Control / Dust / Sense | Open sub-panel (emergency, style, filters) |
 | **Toggle option** | **LMB** in sub | Green = ON · black = OFF · center = back |
-| **Cycle mode** | **Tap R** | Dust → Sense → Control → Aegis → Dust |
-| **Primary ability** | **G** (Primary Active) | Cast the skill of the current mode |
-| **Static Climb** | **Secondary Active** | Pay **10 Charge once** → climb walls until cancel (no drain). Press again to stop (free). Bind in Controls → Origins if unbound. |
+| **Cycle mode** | **Tap R** | Dust → Sense → Control → Aegis → Circuit → Dust |
+| **Use skill** | **F** | Cast the skill of the current mode |
+| **Wall climb** | (always on) | Slide on a wall to climb. No charge. |
 
-| Mode | Power ID | Skill (on wheel) | Cost | Cooldown (ticks) |
-|------|----------|------------------|-----:|-----------------:|
-| Dust | `mode/dust_curtain` | Dust Curtain | 20 | 25 |
-| Sense | `mode/static_scan` | Static Scan (toggle expand) | per ring† | 8 |
-| Control | `mode/magnetic_lock` | Magnetic Lock (target / field) | 28* / 40‡ | 30 |
-| Aegis | `mode/faraday_cage` | Faraday Cage | 50 / borrow | — |
+| Mode | Skill | Cost | Notes |
+|------|-------|-----:|-------|
+| Dust | Dust Curtain | 5 / 10 | Burst look-hit / smoke zone from the sub-panel |
+| Sense | Static Scan | 8 | F start/stop; one 32-block pulse (source default; world toml may differ); no per-tick drain |
+| Control | Magnetic Lock | 15* / 40‡ | Target miss spends nothing |
+| Aegis | Faraday Cage | 50 | Emergency can raise for free if a hit would drop below the floor |
+| Circuit | Circuit Flip | 8 | F flips the looked-at redstone piece for 8s. No world scan. |
 
-\* Target lock spends Charge **only if** a target is in range (miss = no cost).  
-‡ Field: **40** immediately; expands to **30** blocks; lasts **~60s** while standing still; move = collapse; G again = stop.  
-† Static Scan: G start/stop; radius +1 every 5 ticks until stop / Charge empty (soft cap 128); cost 1/2/3/4 by band; colored glow by threat/HP.
+\* Target lock spends Charge **only if** a living target is hit.  
+‡ Field: **40** immediately; expands to **30** blocks; lasts **~60s** while standing still; move = collapse; F again = stop.
 
-**Charge** (0–100): `charge_tick` regen while dry / drain when wet; `motion_charge` gains from nearby moving life (≤5 blocks); wet = +25% damage taken.
+**Charge** (0–100): Java regen while dry / drain when wet; motion harvest from nearby moving life (≤5 blocks default); wet = +25% damage taken. Numbers live in `config/static_resonance-common.toml`. With Cloth Config, Mods → Static Resonance → Config edits them in-game.
 
 Hold-R radial UI: `vfx-specs/ui/radial_mode_menu.md`.
 
@@ -61,7 +62,13 @@ cd Desktop\static-resonance
 gradlew.bat build
 ```
 
-Output jar: `build/libs/static_resonance-1.0.0.jar`
+Output jar: `build/libs/static_resonance-1.0.18.jar`
+
+Formula unit tests (no Minecraft boot):
+
+```bat
+gradlew.bat test
+```
 
 ### Dev run
 
@@ -95,48 +102,45 @@ Runtime still comes from Origins. After bumping the Origins file id, re-extract 
 
 ```
 static-resonance/
-  src/main/java/...                 thin @Mod entry
-  src/main/resources/data/
-    static_resonance/
-      origins/                      origin definition
-      powers/
-        systems/                    charge, mode, charge_tick
-        mode/                       one power per mode ability
-        active/                     switch_mode, no_charge_feedback
-        passive/ weakness/
-      functions/                    dust, sense, control, overcharge, mode, util
-      tags/
-  vfx-specs/                        AI-readable 3D/UI designs (no runtime)
-  docs/
+  src/main/java/com/staticresonance/
+    mode/     spend/apply authority (Faraday, Control, Scan, Circuit, Climb)
+    logic/    pure formulas (tested)
+    client/   radial, outlines
+    network/  F-cast + mode/style packets
+  src/main/resources/data/static_resonance/
+    origins/  origin definition
+    powers/   resources, passives, weakness, leftover mode JSON
+    functions/  one-shot FX
+    tags/
+  docs/       catalog (source of truth), PLAYTEST, architecture
+  vfx-specs/  AI-readable 3D/UI designs (no runtime)
 ```
 
-Power IDs: `static_resonance:mode/dust_curtain`, `static_resonance:active/switch_mode`, …
-
-Combat functions tag the caster as `sr_caster` for damage attribution (no `@p`). No teleport CC.
+Combat functions do not use `@p` for damage credit.
 
 ---
 
-## Smoke test
+## Playtest
 
-- [ ] Mod + Origins load without errors  
-- [ ] Origin appears in chooser  
-- [ ] Charge bar visible; regenerates on land; drains in water  
-- [ ] Secondary cycles four mode names on actionbar  
-- [ ] Primary casts different skill per mode (separate CDs)  
-- [ ] Low charge shows “Insufficient Charge”  
-- [ ] Magnetic Lock miss does not spend charge  
-- [ ] Multiplayer: damage credit stays on caster  
+Use [`docs/PLAYTEST.md`](docs/PLAYTEST.md) before bumping the version. Short version:
+
+- [ ] Origin chooser + F casts the selected mode  
+- [ ] Charge regenerates dry, drains wet  
+- [ ] Radial LMB does not spend charge  
+- [ ] Faraday farm feel + emergency without a cage up  
+- [ ] Scan in a dense area then unload a marked mob  
+- [ ] Circuit toggle, walk away, wait for expiry  
+- [ ] Wall climb on a dedicated server (no rubber-band)
 
 ---
 
 ## Phase 2 (not implemented)
 
 - 3D meshes / beams / trails (`vfx-specs/abilities/*`)  
-- ~~Hold-R radial UI~~ (done)
 - Full upgrade tree (Dust Storm, Chain Shock, …)  
 - Hostile vs PvP target tags cleanup  
 - More origins under the same shared systems
 
 ---
 
-© 2026 Pipothai. All Rights Reserved.  
+© 2026 Pipothai. All Rights Reserved.
