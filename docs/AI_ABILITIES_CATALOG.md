@@ -13,8 +13,8 @@
 | MC / Loader | 1.20.1 Forge |
 | Depends | Origins (Forge) + Apoli |
 | Origin ID | `static_resonance:static_resonance` |
-| Catalog version | **2.6.0** |
-| Last updated | **2026-08-20** |
+| Catalog version | **2.7.0** |
+| Last updated | **2026-08-23** |
 | Status | Playable: 5 modes (Dust, Sense, Control, Aegis, Circuit) + always-on climb + Faraday Cage + Control field/target + select-only radial. Cast is **F**. Balance numbers are Forge COMMON config defaults (`GameplayDefaults` → `config/static_resonance-common.toml`; Cloth Config opens them from Mods → Config). |
 
 ---
@@ -132,7 +132,7 @@ Mode skills are Java, not Origins active powers, so they do not add extra Origin
 | Radius | **32** default (`GameplayDefaults.SCAN_RADIUS`, config 1–128) — one server AABB pulse. A world’s toml wins if it differs. |
 | Cap | **128** marks |
 | Expand | Client-only reveal 0→radius over 1s |
-| Reveal | Private colored boxes: **green** safe, **white** players, **red** hostiles. See-through walls default **off** (`visuals.seeThroughWalls`; server COMMON file is opt-in) |
+| Reveal | Private four camera-facing lock corners: **green** safe, **white** players, **red** hostiles. Post-composite overlay (shader-safe). See-through walls default **off** (`visuals.seeThroughWalls`; server COMMON file is opt-in) |
 
 ---
 
@@ -191,7 +191,7 @@ Mode skills are Java, not Origins active powers, so they do not add extra Origin
 | Cost | **8** when F flips the aimed `#circuit` piece |
 | F | One `player.pick` (`lookRange` default **16**). Force on/off that piece for 8s. Neighbor graph pulses once; later vanilla notifies on that pos are canceled. Miss spends nothing |
 | Leave mode / logout | Owned forced pieces restore immediately |
-| Client | No Circuit outlines. Sense still uses `SeeThroughRender` |
+| Client | No Circuit outlines. Sense scan marks are a post-composite four-corner overlay (`ScanBoxRenderer`) |
 
 ---
 
@@ -247,6 +247,7 @@ Mode skills and climb are **Java** (`CastService` / `ClimbService`), not Origins
 
 ```
 com.staticresonance
+  client/        ScanOutlineClient, ScanBoxRenderer, ShaderPacks, AllyListClient
   client/ui/     RadialModeMenu, RadialModeMenuRenderer, RadialWedge
   mode/          ModeService, CastService, ControlService, FaradayService,
                  CircuitService, ClimbService, ScanOutlineService,

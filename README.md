@@ -6,7 +6,7 @@ Minecraft **1.20.1 Forge** content mod that adds the **Static Resonance** origin
 **GitHub:** https://github.com/aletheiamask/static-resonance  
 **YouTube:** https://www.youtube.com/@Tuna_Sandwich_TOT  
 
-**License: All Rights Reserved.** You may play this mod. You may not copy, reupload, rebrand, or ship it in another project without written permission from Pipothai. See `LICENSE`.
+**License: All Rights Reserved.** You may download it, play it, and put it in modpacks. You may not reupload it as your own, rebrand it, claim authorship, sell it, or ship a modified copy as if it were yours. See `LICENSE`.
 
 Gameplay is a **hybrid**: Origins/Apoli for mode gates and resource bars, **Java services** for spend/apply so charge cannot desync. The skill wheel and outlines are Java.
 
@@ -62,7 +62,7 @@ cd Desktop\static-resonance
 gradlew.bat build
 ```
 
-Output jar: `build/libs/static_resonance-1.0.18.jar`
+Output jar: `build/libs/static_resonance-1.0.26.jar`
 
 Formula unit tests (no Minecraft boot):
 

@@ -1,6 +1,11 @@
 package com.staticresonance.logic;
 
+import com.staticresonance.network.PacketLimits;
 import org.junit.jupiter.api.Test;
+
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -30,5 +35,19 @@ class MarkPruneTest {
         int strikes = MarkPrune.nextMissStrikes(false, 1);
         assertEquals(2, strikes);
         assertTrue(MarkPrune.shouldDrop(false, false, strikes));
+    }
+
+    @Test
+    void fifoNeverExceedsOutlineCap() {
+        LinkedHashSet<UUID> marked = new LinkedHashSet<>();
+        for (int i = 0; i < 200; i++) {
+            marked.add(UUID.randomUUID());
+        }
+        while (marked.size() > PacketLimits.MAX_OUTLINE_MARKS) {
+            Iterator<UUID> it = marked.iterator();
+            it.next();
+            it.remove();
+        }
+        assertEquals(PacketLimits.MAX_OUTLINE_MARKS, marked.size());
     }
 }

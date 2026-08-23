@@ -51,7 +51,7 @@
 | Main hovered | Near-white fill |
 | Sub ON / active | Green `#2E7D32` → hover `#66BB6A` |
 | Sub OFF | Black `#0A0A0A` |
-| Chrome | Hotbar light/dark rings, inventory dim |
+| Chrome | Hotbar light/dark rings, one full-screen dim (no nested grey rectangles) |
 
 ## Network
 

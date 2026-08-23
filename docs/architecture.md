@@ -9,7 +9,7 @@
 - DRY
 - Separation of Concerns
 
-## Static Resonance — live implementation notes (2026-08-20)
+## Static Resonance — live implementation notes (2026-08-23)
 
 This mod is a **hybrid**: Origins/Apoli datapack for mode gates + some AoE, **Java services** for authority on spend/apply where dual costs would desync.
 
@@ -37,6 +37,7 @@ Full ability truth: [`AI_ABILITIES_CATALOG.md`](./AI_ABILITIES_CATALOG.md)
 
 ```
 com.staticresonance
+  client/        Scan overlay (ScanOutlineClient, ScanBoxRenderer, ShaderPacks)
   client/ui/     Radial (select-only wheel + sub-panels)
   mode/          ModeService, CastService, ControlService, FaradayService, ApoliResources
   logic/         Pure formulas (charge buckets, expire clock, scan prune, gameplay defaults)

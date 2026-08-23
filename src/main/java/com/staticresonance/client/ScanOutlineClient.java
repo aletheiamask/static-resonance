@@ -1,20 +1,17 @@
 package com.staticresonance.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.config.SrConfig;
 import com.staticresonance.mode.ScanOutlineService;
 import com.staticresonance.network.PacketLimits;
 import com.staticresonance.network.ScanOutlinePacket;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
@@ -27,6 +24,7 @@ import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -39,7 +37,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Caster-only colored line boxes for scan marks. See-through via {@link SeeThroughRender}.
+ * Caster-only colored lock corners for scan marks. Drawn after the level so shader packs
+ * cannot composite the lines into the sky.
  */
 @Mod.EventBusSubscriber(modid = StaticResonanceMod.MOD_ID, value = Dist.CLIENT)
 public final class ScanOutlineClient {
@@ -58,6 +57,10 @@ public final class ScanOutlineClient {
 
     private static final Set<UUID> MARKED = new LinkedHashSet<>();
     private static final List<LivingEntity> CACHED = new ArrayList<>();
+    private static final List<ScanBoxRenderer.Box> FRAME = new ArrayList<>();
+    private static final Matrix4f WORLD_PROJECTION = new Matrix4f();
+    private static final Matrix4f WORLD_VIEW = new Matrix4f();
+    private static boolean haveWorldMatrices;
     private static int clientTick;
     private static int revealTicks;
     private static int markGeneration;
@@ -108,7 +111,9 @@ public final class ScanOutlineClient {
         if (revealTicks < REVEAL_TICKS && !MARKED.isEmpty()) {
             revealTicks++;
         }
-        if ((clientTick & 1) == 0 || CACHED.isEmpty()) {
+        if (MARKED.isEmpty()) {
+            CACHED.clear();
+        } else if ((clientTick & 1) == 0 || CACHED.isEmpty()) {
             rebuildCache(level);
         }
         if (!CACHED.isEmpty() && clientTick % SPARK_INTERVAL == 0) {
@@ -118,28 +123,33 @@ public final class ScanOutlineClient {
 
     @SubscribeEvent
     public static void onRender(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
+            if (!MARKED.isEmpty()) {
+                WORLD_PROJECTION.set(event.getProjectionMatrix());
+                WORLD_VIEW.set(event.getPoseStack().last().pose());
+                haveWorldMatrices = true;
+            }
             return;
         }
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+            return;
+        }
+        if (!haveWorldMatrices) {
+            return;
+        }
+        haveWorldMatrices = false;
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null || mc.player == null || CACHED.isEmpty()) {
             return;
         }
-        PoseStack pose = event.getPoseStack();
-        Vec3 cam = event.getCamera().getPosition();
-        pose.pushPose();
-        pose.translate(-cam.x, -cam.y, -cam.z);
-
-        RenderType type = SrConfig.COMMON.visuals.seeThroughWalls.get()
-                ? SeeThroughRender.lines()
-                : RenderType.lines();
-        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
-        VertexConsumer lines = buffers.getBuffer(type);
+        Camera camera = event.getCamera();
         Frustum frustum = event.getFrustum();
+        float partialTick = event.getPartialTick();
         float reveal = revealRadius();
         boolean expanding = revealTicks < REVEAL_TICKS && scanOrigin != null;
         double revealSq = reveal * reveal;
+        FRAME.clear();
         for (LivingEntity living : CACHED) {
             if (!living.isAlive()) {
                 continue;
@@ -147,15 +157,19 @@ public final class ScanOutlineClient {
             if (expanding && living.distanceToSqr(scanOrigin) > revealSq) {
                 continue;
             }
-            AABB box = living.getBoundingBox().inflate(0.06);
+            AABB box = interpolatedBox(living, partialTick);
             if (frustum != null && !frustum.isVisible(box)) {
                 continue;
             }
+            if (entirelyBehind(camera, box)) {
+                continue;
+            }
             float[] rgb = colorFor(living);
-            LevelRenderer.renderLineBox(pose, lines, box, rgb[0], rgb[1], rgb[2], 0.95f);
+            float pulse = 0.72f + 0.23f * Mth.sin((clientTick + partialTick) * 0.18f);
+            FRAME.add(new ScanBoxRenderer.Box(box, rgb[0], rgb[1], rgb[2], 0.95f * pulse));
         }
-        buffers.endBatch(type);
-        pose.popPose();
+        boolean seeThrough = SrConfig.COMMON.visuals.seeThroughWalls.get() || ShaderPacks.inUse();
+        ScanBoxRenderer.draw(camera, WORLD_PROJECTION, WORLD_VIEW, seeThrough, FRAME);
     }
 
     @SubscribeEvent
@@ -183,6 +197,28 @@ public final class ScanOutlineClient {
         }
         float r = revealRadius();
         return living.distanceToSqr(scanOrigin) <= r * r;
+    }
+
+    private static AABB interpolatedBox(LivingEntity living, float partialTick) {
+        double x = Mth.lerp(partialTick, living.xo, living.getX());
+        double y = Mth.lerp(partialTick, living.yo, living.getY());
+        double z = Mth.lerp(partialTick, living.zo, living.getZ());
+        return living.getBoundingBox()
+                .move(x - living.getX(), y - living.getY(), z - living.getZ())
+                .inflate(0.06);
+    }
+
+    private static boolean entirelyBehind(Camera camera, AABB box) {
+        Vec3 cam = camera.getPosition();
+        Vec3 look = Vec3.directionFromRotation(camera.getXRot(), camera.getYRot());
+        double hx = box.getXsize() * 0.5;
+        double hy = box.getYsize() * 0.5;
+        double hz = box.getZsize() * 0.5;
+        double radius = Math.sqrt(hx * hx + hy * hy + hz * hz);
+        double dx = (box.minX + box.maxX) * 0.5 - cam.x;
+        double dy = (box.minY + box.maxY) * 0.5 - cam.y;
+        double dz = (box.minZ + box.maxZ) * 0.5 - cam.z;
+        return dx * look.x + dy * look.y + dz * look.z < -radius;
     }
 
     private static float[] colorFor(LivingEntity living) {
@@ -289,6 +325,8 @@ public final class ScanOutlineClient {
     private static void clearScanMarks() {
         MARKED.clear();
         CACHED.clear();
+        FRAME.clear();
+        haveWorldMatrices = false;
         revealTicks = 0;
         markGeneration++;
         walkedGeneration = markGeneration;

@@ -101,13 +101,8 @@ public final class RadialModeMenuRenderer {
         float cy = sh / 2f;
         float anim = easeOutBack(RadialModeMenu.openAnim());
 
-        // Soft grey glass scrim (layered for faux-blur)
         int a0 = (int) (90 * anim);
-        int a1 = (int) (70 * anim);
-        int a2 = (int) (50 * anim);
         graphics.fill(0, 0, sw, sh, withAlpha(COL_SCRIM, a0));
-        graphics.fill(sw / 8, sh / 8, sw - sw / 8, sh - sh / 8, withAlpha(0x3A3A3A, a1));
-        graphics.fill(sw / 5, sh / 5, sw - sw / 5, sh - sh / 5, withAlpha(0x484848, a2));
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
