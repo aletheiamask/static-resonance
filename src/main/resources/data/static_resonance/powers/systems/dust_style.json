@@ -8,5 +8,5 @@
   },
   "hidden": true,
   "name": "Dust Style",
-  "description": "0 = burst at feet, 1 = smoke zone on the living entity you look at."
+  "description": "0 = single target (blind + slow the entity you look at), 1 = smoke zone on the living entity you look at."
 }

@@ -1,4 +1,5 @@
 {
+  "item.static_resonance.origin_icon": "Static Resonance",
   "origin.static_resonance.static_resonance.name": "Static Resonance",
   "origin.static_resonance.static_resonance.description": "คุณควบคุมพลังไฟฟ้าสถิต กดค้าง R เปิดวงล้อสกิล (แตะ R วนโหมด) คลิกซ้ายเลือกโหมด/ตัวเลือก F ใช้สกิล ห้าโหมด ปีนกำแพงได้ ประจุ 0–100\n\nสร้างโดย Pipothai · youtube.com/@Tuna_Sandwich_TOT",
 
@@ -148,5 +149,13 @@
   "config.static_resonance.circuit.lookRange": "ระยะเล็งวงจร",
   "config.static_resonance.circuit.toggleTicks": "ระยะเวลาบังคับวงจร (ติ๊ก)",
   "config.static_resonance.climb.climbSpeed": "ความเร็วปีนผนัง",
-  "config.static_resonance.visuals.seeThroughWalls": "กล่องสแกนทะลุกำแพง"
+  "config.static_resonance.visuals.seeThroughWalls": "กล่องสแกนทะลุกำแพง",
+  "ui.static_resonance.mode_bar.dust": "โหมด: Dust",
+  "ui.static_resonance.mode_bar.sense": "โหมด: Sense",
+  "ui.static_resonance.mode_bar.control": "โหมด: Control",
+  "ui.static_resonance.mode_bar.circuit": "โหมด: Circuit",
+  "ui.static_resonance.mode_bar.aegis": "โหมด: Aegis — กรงฟาราเดย์",
+  "ui.static_resonance.emergency_vitals": "เลือดวิกฤต",
+  "ui.static_resonance.emergency_reroute": " — ดึงประจุสำรองมาสร้างกรงป้องกัน",
+  "ui.static_resonance.emergency_grid": "  กรงอยู่ %s วิ  |  จับกระสุน: ทำงาน"
 }

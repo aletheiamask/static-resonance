@@ -16,7 +16,7 @@
     "static_resonance:weakness/water_vulnerability"
   ],
   "icon": {
-    "item": "minecraft:lightning_rod"
+    "item": "static_resonance:origin_icon"
   },
   "order": 8,
   "impact": 2,

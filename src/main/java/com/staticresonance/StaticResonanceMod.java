@@ -26,8 +26,10 @@ public class StaticResonanceMod {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public StaticResonanceMod() {
+        var bus = FMLJavaModLoadingContext.get().getModEventBus();
+        ModItems.ITEMS.register(bus);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SrConfig.COMMON_SPEC);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::commonSetup);
+        bus.addListener(this::commonSetup);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

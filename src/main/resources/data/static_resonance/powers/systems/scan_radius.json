@@ -8,5 +8,5 @@
   },
   "hidden": true,
   "name": "Scan Radius",
-  "description": "Current Static Scan radius in blocks. Expands until you stop (G), change mode, or run out of Charge."
+  "description": "Current Static Scan radius in blocks. Set by one F pulse in Sense mode; cleared when you stop, change mode, or leave."
 }

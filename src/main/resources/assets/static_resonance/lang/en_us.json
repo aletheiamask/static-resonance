@@ -1,4 +1,5 @@
 {
+  "item.static_resonance.origin_icon": "Static Resonance",
   "origin.static_resonance.static_resonance.name": "Static Resonance",
   "origin.static_resonance.static_resonance.description": "You conduct electrostatic vibration. Hold R for the skill wheel (tap R to cycle). Left-click selects a mode or options. F casts the mode ability. Five modes. You climb walls. Charge is 0–100.\n\nBy Pipothai · youtube.com/@Tuna_Sandwich_TOT",
 
@@ -148,5 +149,13 @@
   "config.static_resonance.circuit.lookRange": "Circuit look range",
   "config.static_resonance.circuit.toggleTicks": "Circuit force duration (ticks)",
   "config.static_resonance.climb.climbSpeed": "Wall climb speed",
-  "config.static_resonance.visuals.seeThroughWalls": "Sense scan boxes through walls"
+  "config.static_resonance.visuals.seeThroughWalls": "Sense scan boxes through walls",
+  "ui.static_resonance.mode_bar.dust": "Mode: Dust",
+  "ui.static_resonance.mode_bar.sense": "Mode: Sense",
+  "ui.static_resonance.mode_bar.control": "Mode: Control",
+  "ui.static_resonance.mode_bar.circuit": "Mode: Circuit",
+  "ui.static_resonance.mode_bar.aegis": "Mode: Aegis — Faraday Cage",
+  "ui.static_resonance.emergency_vitals": "VITALS CRITICAL",
+  "ui.static_resonance.emergency_reroute": " — redirecting static reserve into containment lattice.",
+  "ui.static_resonance.emergency_grid": "  GRID DURATION %ss  |  PROJECTILE HOLD ACTIVE"
 }

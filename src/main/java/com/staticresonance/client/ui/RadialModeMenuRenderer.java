@@ -279,7 +279,7 @@ public final class RadialModeMenuRenderer {
 
             graphics.drawCenteredString(font,
                     Component.translatable("skill.static_resonance.magnetic_lock"),
-                    (int) cx, (int) (cy - outerBase - 22), 0xFFE1BEE7);
+                    (int) cx, (int) (cy - outerBase - 22), 0xFFE8F4FF);
 
             int leftColor = targetOn ? 0xFFAAFFAA : 0xFF888888;
             int rightColor = fieldOn ? 0xFFAAFFAA : 0xFF888888;
@@ -302,7 +302,7 @@ public final class RadialModeMenuRenderer {
                             SrConfig.COMMON.control.fieldMaxRadius.get(),
                             SrConfig.COMMON.control.fieldCost.get(),
                             ticksToSec(SrConfig.COMMON.control.fieldDurationTicks.get()));
-            graphics.drawCenteredString(font, hint, (int) cx, (int) (cy + outerBase + 12), 0xFFCE93D8);
+            graphics.drawCenteredString(font, hint, (int) cx, (int) (cy + outerBase + 12), 0xFFB0BEC5);
 
             float tAlly = hover == SubHover.CONTROL_ALLY ? 1f : 0f;
             subAllyHover = approach(subAllyHover, tAlly, dt * HOVER_ANIM_SPEED);
@@ -353,7 +353,7 @@ public final class RadialModeMenuRenderer {
         graphics.drawCenteredString(font, Component.translatable("ui.static_resonance.sub_back"),
                 (int) cx, (int) (cy - 4), hover == SubHover.BACK ? 0xFFFFFFFF : 0xFFB0B0B0);
         graphics.drawCenteredString(font, Component.translatable("skill.static_resonance.dust_curtain"),
-                (int) cx, (int) (cy - outerBase - 22), 0xFFE6CC8A);
+                (int) cx, (int) (cy - outerBase - 22), 0xFFE8F4FF);
         Component left = Component.translatable("ui.static_resonance.dust_burst");
         Component right = Component.translatable("ui.static_resonance.dust_zone");
         graphics.drawString(font, left, (int) (cx - outerBase - 10 - font.width(left)), (int) (cy - 4),
@@ -366,7 +366,7 @@ public final class RadialModeMenuRenderer {
                         : Component.translatable("ui.static_resonance.dust_zone_hint",
                                 SrConfig.COMMON.dust.zoneCost.get(),
                                 ticksToSec(SrConfig.COMMON.dust.zoneDurationTicks.get())),
-                (int) cx, (int) (cy + outerBase + 12), 0xFFD7CCC8);
+                (int) cx, (int) (cy + outerBase + 12), 0xFFB0BEC5);
     }
 
     private static void drawScanSub(GuiGraphics graphics, Minecraft mc, Font font,
@@ -405,7 +405,7 @@ public final class RadialModeMenuRenderer {
         graphics.drawCenteredString(font, Component.translatable("ui.static_resonance.sub_back"),
                 (int) cx, (int) (cy - 4), hover == SubHover.BACK ? 0xFFFFFFFF : 0xFFB0B0B0);
         graphics.drawCenteredString(font, Component.translatable("skill.static_resonance.static_scan"),
-                (int) cx, (int) (cy - outerBase - 22), 0xFF81D4FA);
+                (int) cx, (int) (cy - outerBase - 22), 0xFFE8F4FF);
         graphics.drawString(font, Component.translatable("ui.static_resonance.scan_passive"),
                 (int) (cx - outerBase - 10 - font.width(Component.translatable("ui.static_resonance.scan_passive"))),
                 (int) (cy - 4), passiveOn ? 0xFFAAFFAA : 0xFF888888, hp > 0.35f);

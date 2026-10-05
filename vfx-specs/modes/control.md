@@ -4,14 +4,14 @@
 |-------|-------|
 | Index | 2 |
 | Theme | Magnetic / high-voltage grasp |
-| HUD colors | Purple `#B388FF` / Violet `#7C4DFF` |
+| HUD colors | Ice white `#E8F4FF` |
 | Feel | Tight, forceful, targeted |
 
 ## Identity
 
-- Lines / arcs between caster and target
+- White corona ring + lightning sting
 - Sparks at contact points
-- Not a large AoE cloud
+- Not a large AoE cloud, not witch-purple
 
 ## Future 3D
 

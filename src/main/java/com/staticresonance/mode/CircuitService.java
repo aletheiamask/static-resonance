@@ -3,6 +3,8 @@ package com.staticresonance.mode;
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.config.SrConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -60,6 +62,7 @@ public final class CircuitService {
 
     private static final Map<ResourceKey<Level>, ConcurrentHashMap<Long, Interference>> INTERFERENCES =
             new ConcurrentHashMap<>();
+    private static final int IDLE_SPARK_INTERVAL = 10;
 
     private CircuitService() {
     }
@@ -72,7 +75,7 @@ public final class CircuitService {
         if (!ModeService.hasModePower(player) || ModeService.getMode(player) != ResonanceMode.CIRCUIT) {
             return false;
         }
-        BlockPos look = lookCircuit(player);
+        BlockHitResult look = lookCircuit(player);
         if (look == null) {
             ActionBars.show(player, Component.translatable("ui.static_resonance.circuit_miss"));
             return false;
@@ -86,8 +89,9 @@ public final class CircuitService {
         }
     }
 
-    private static boolean toggleLooked(ServerPlayer player, BlockPos pos) {
+    private static boolean toggleLooked(ServerPlayer player, BlockHitResult hit) {
         ServerLevel level = player.serverLevel();
+        BlockPos pos = hit.getBlockPos();
         BlockState state = level.getBlockState(pos);
         if (!state.is(CIRCUIT_TAG)) {
             return false;
@@ -107,6 +111,7 @@ public final class CircuitService {
         putInterference(dim, packed, new Interference(
                 player.getUUID(), dim, frozen, saved, forceOn,
                 level.getGameTime() + SrConfig.COMMON.circuit.toggleTicks.get()));
+        spawnCastVfx(level, hit, forceOn);
         level.playSound(null, pos,
                 forceOn ? SoundEvents.NOTE_BLOCK_PLING.value() : SoundEvents.REDSTONE_TORCH_BURNOUT,
                 SoundSource.PLAYERS, 0.45f, forceOn ? 1.8f : 0.7f);
@@ -167,6 +172,9 @@ public final class CircuitService {
             while (it.hasNext()) {
                 Interference inf = it.next().getValue();
                 if (now < inf.expireGameTime) {
+                    if (level != null && now % IDLE_SPARK_INTERVAL == 0 && level.hasChunkAt(inf.pos)) {
+                        spawnIdleSparks(level, inf.pos);
+                    }
                     continue;
                 }
                 it.remove();
@@ -215,19 +223,49 @@ public final class CircuitService {
         }
         level.setBlock(inf.pos, inf.saved, Block.UPDATE_ALL);
         level.updateNeighborsAt(inf.pos, inf.saved.getBlock());
+        spawnRestoreVfx(level, inf.pos);
     }
 
     @Nullable
-    private static BlockPos lookCircuit(ServerPlayer player) {
+    private static BlockHitResult lookCircuit(ServerPlayer player) {
         HitResult hit = player.pick(lookRange(), 1.0f, false);
         if (hit.getType() != HitResult.Type.BLOCK) {
             return null;
         }
-        BlockPos pos = ((BlockHitResult) hit).getBlockPos();
-        if (!player.serverLevel().getBlockState(pos).is(CIRCUIT_TAG)) {
+        BlockHitResult blockHit = (BlockHitResult) hit;
+        if (!player.serverLevel().getBlockState(blockHit.getBlockPos()).is(CIRCUIT_TAG)) {
             return null;
         }
-        return pos.immutable();
+        return blockHit;
+    }
+
+    private static void spawnCastVfx(ServerLevel level, BlockHitResult hit, boolean forceOn) {
+        Direction face = hit.getDirection();
+        BlockPos pos = hit.getBlockPos();
+        double x = pos.getX() + 0.5 + face.getStepX() * 0.55;
+        double y = pos.getY() + 0.5 + face.getStepY() * 0.55;
+        double z = pos.getZ() + 0.5 + face.getStepZ() * 0.55;
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, x, y, z, 14, 0.18, 0.18, 0.18, 0.08);
+        level.sendParticles(SrFx.CHARGE_DUST, x, y, z, 10, 0.22, 0.22, 0.22, 0);
+        level.sendParticles(ParticleTypes.END_ROD, x, y, z, 0,
+                face.getStepX() * 0.35, face.getStepY() * 0.35, face.getStepZ() * 0.35, 0.08);
+        if (forceOn) {
+            level.sendParticles(ParticleTypes.END_ROD, x, y, z, 3, 0.05, 0.05, 0.05, 0.01);
+        } else {
+            level.sendParticles(ParticleTypes.WAX_OFF, x, y, z, 6, 0.15, 0.15, 0.15, 0.02);
+        }
+    }
+
+    private static void spawnIdleSparks(ServerLevel level, BlockPos pos) {
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                2, 0.2, 0.2, 0.2, 0.01);
+    }
+
+    private static void spawnRestoreVfx(ServerLevel level, BlockPos pos) {
+        level.sendParticles(ParticleTypes.WAX_OFF,
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                8, 0.25, 0.25, 0.25, 0.02);
     }
 
     private static boolean spend(ServerPlayer player, int cost) {

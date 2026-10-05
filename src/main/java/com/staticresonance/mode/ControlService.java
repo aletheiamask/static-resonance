@@ -2,7 +2,6 @@ package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.config.SrConfig;
-import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
@@ -29,7 +28,6 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.server.ServerLifecycleHooks;
-import org.joml.Vector3f;
 
 import java.util.Map;
 import java.util.UUID;
@@ -59,8 +57,6 @@ public final class ControlService {
     private static final Map<UUID, FieldSession> SESSIONS = new ConcurrentHashMap<>();
     private static final Map<UUID, HandLock> HANDS = new ConcurrentHashMap<>();
     private static final ThreadLocal<Boolean> RESTORING = ThreadLocal.withInitial(() -> Boolean.FALSE);
-    private static final DustParticleOptions RING_DUST =
-            new DustParticleOptions(new Vector3f(0.70f, 0.53f, 1.0f), 1.1f);
 
     private ControlService() {
     }
@@ -121,7 +117,8 @@ public final class ControlService {
 
         ServerLevel level = player.serverLevel();
         level.sendParticles(ParticleTypes.SONIC_BOOM, pos.x, pos.y + 1.0, pos.z, 1, 0, 0, 0, 0);
-        level.sendParticles(ParticleTypes.WITCH, pos.x, pos.y + 1.0, pos.z, 40, 0.6, 0.4, 0.6, 0.05);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, pos.x, pos.y + 1.0, pos.z, 24, 0.6, 0.4, 0.6, 0.12);
+        level.sendParticles(ParticleTypes.END_ROD, pos.x, pos.y + 1.0, pos.z, 12, 0.45, 0.35, 0.45, 0.02);
         level.playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE,
                 SoundSource.PLAYERS, 0.7f, 0.75f);
         level.playSound(null, player.blockPosition(), SoundEvents.RESPAWN_ANCHOR_CHARGE,
@@ -143,7 +140,8 @@ public final class ControlService {
         }
         ServerLevel level = player.serverLevel();
         Vec3 pos = player.position();
-        level.sendParticles(ParticleTypes.SMOKE, pos.x, pos.y + 1.0, pos.z, 24, 0.5, 0.4, 0.5, 0.02);
+        level.sendParticles(ParticleTypes.WHITE_ASH, pos.x, pos.y + 1.0, pos.z, 16, 0.5, 0.4, 0.5, 0.02);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, pos.x, pos.y + 1.0, pos.z, 8, 0.4, 0.3, 0.4, 0.06);
         level.playSound(null, player.blockPosition(), SoundEvents.BEACON_DEACTIVATE,
                 SoundSource.PLAYERS, 0.5f, 1.2f);
         String key = reason == StopReason.MOVED
@@ -188,13 +186,13 @@ public final class ControlService {
         applyLock(player, target, level, true, false, SrConfig.COMMON.control.lockEffectTicks.get());
         spawnHeadRing(level, target);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, pos.x, pos.y + 1.0, pos.z, 24, 0.55, 0.55, 0.55, 0.12);
-        level.sendParticles(ParticleTypes.WITCH, pos.x, pos.y + 1.0, pos.z, 12, 0.4, 0.4, 0.4, 0.04);
+        level.sendParticles(ParticleTypes.END_ROD, pos.x, pos.y + 1.0, pos.z, 8, 0.35, 0.35, 0.35, 0.02);
         level.playSound(null, player.blockPosition(), SoundEvents.RESPAWN_ANCHOR_CHARGE,
                 SoundSource.PLAYERS, 0.7f, 1.4f);
         level.playSound(null, player.blockPosition(), SoundEvents.ELDER_GUARDIAN_CURSE,
                 SoundSource.PLAYERS, 0.25f, 1.8f);
         ActionBars.show(player, Component.translatable("ui.static_resonance.magnetic_lock_hit")
-                .withStyle(s -> s.withColor(0xB388FF)));
+                .withStyle(s -> s.withColor(SrFx.TEXT_WHITE)));
         return true;
     }
 
@@ -286,8 +284,8 @@ public final class ControlService {
         double cy = target.getY() + bodyH + 0.35;
         double cz = target.getZ();
         double r = Math.max(0.45, target.getBbWidth() * 0.55);
-        level.sendParticles(RING_DUST, cx, cy, cz, 16, r, 0.04, r, 0);
-        level.sendParticles(ParticleTypes.WITCH, cx, cy, cz, 8, r * 0.6, 0.05, r * 0.6, 0);
+        level.sendParticles(SrFx.CHARGE_DUST_LARGE, cx, cy, cz, 16, r, 0.04, r, 0);
+        level.sendParticles(ParticleTypes.END_ROD, cx, cy, cz, 8, r * 0.6, 0.05, r * 0.6, 0);
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, cx, target.getY() + bodyH * 0.5, cz,
                 16, 0.3, bodyH * 0.25, 0.3, 0.05);
         level.sendParticles(ParticleTypes.FLASH, cx, target.getY() + bodyH * 0.6, cz, 1, 0, 0, 0, 0);
@@ -508,9 +506,9 @@ public final class ControlService {
             double a = phase + (Math.PI * 2.0 * i) / points;
             double x = center.x + Math.cos(a) * radius;
             double z = center.z + Math.sin(a) * radius;
-            level.sendParticles(RING_DUST, x, center.y + 0.2, z, 1, 0, 0, 0, 0);
+            level.sendParticles(SrFx.CHARGE_DUST, x, center.y + 0.2, z, 1, 0, 0, 0, 0);
             if (i % 3 == 0) {
-                level.sendParticles(ParticleTypes.WITCH, x, center.y + 0.25, z, 1, 0, 0, 0, 0);
+                level.sendParticles(ParticleTypes.ELECTRIC_SPARK, x, center.y + 0.25, z, 1, 0, 0, 0, 0);
             }
         }
     }

@@ -9,7 +9,7 @@
 | Cap | **128** marks |
 | Hit | Private four camera-facing lock corners for the scanner: green safe, white players, red hostiles |
 | Damage | None |
-| Stand-in | Java outlines + `functions/sense/scan_start` / `scan_stop` FX |
+| Stand-in | Java outlines + client white sonar ring + `functions/sense/scan_start` / `scan_stop` FX |
 
 ## Timeline (one-shot)
 
@@ -22,8 +22,9 @@
 
 ## Emitters (future)
 
-1. **Scan torus** — cyan rim at pulse radius, additive
-2. **Entity mark** — brief ring over each hit entity
+1. **Scan torus** — white dust + spark rim at pulse radius (client reveal ring)
+2. **Entity mark** — four lock corners: green safe, white players, red hostiles
+3. **Stop** — wax_off + sparks (not smoke)
 
 ## Sound
 
