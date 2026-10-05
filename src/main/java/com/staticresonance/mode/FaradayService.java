@@ -3,6 +3,7 @@ package com.staticresonance.mode;
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.config.SrConfig;
 import com.staticresonance.logic.ExpireClock;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -178,6 +179,7 @@ public final class FaradayService {
         }
         armCage(player);
         runFunction(player, "function static_resonance:faraday/emergency_fx");
+        sendEmergencyReport(player);
         return true;
     }
 
@@ -247,6 +249,21 @@ public final class FaradayService {
                 showCountdown(player);
             }
         }
+    }
+
+    /** Chat report for an emergency raise; duration comes from config, not a fixed string. */
+    private static void sendEmergencyReport(ServerPlayer player) {
+        String sec = String.format(java.util.Locale.ROOT, "%.1f",
+                SrConfig.COMMON.faraday.durationTicks.get() / 20.0);
+        player.sendSystemMessage(Component.literal("[").withStyle(ChatFormatting.DARK_GRAY)
+                .append(Component.literal("SR-AEGIS").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD))
+                .append(Component.literal("] ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.translatable("ui.static_resonance.emergency_vitals")
+                        .withStyle(ChatFormatting.RED, ChatFormatting.BOLD))
+                .append(Component.translatable("ui.static_resonance.emergency_reroute")
+                        .withStyle(ChatFormatting.GRAY)));
+        player.sendSystemMessage(Component.translatable("ui.static_resonance.emergency_grid", sec)
+                .withStyle(ChatFormatting.DARK_AQUA));
     }
 
     private static void showCountdown(ServerPlayer player) {

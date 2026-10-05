@@ -2,7 +2,6 @@ package com.staticresonance.mode;
 
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.config.SrConfig;
-import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -14,7 +13,6 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
@@ -41,8 +39,7 @@ public final class DustService {
     private static final int ZONE_TICK_INTERVAL = 4;
 
     private static final Map<UUID, DustZone> ZONES = new ConcurrentHashMap<>();
-    private static final BlockParticleOption SAND_DUST =
-            new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState());
+    private static final int GROUND_RING_POINTS = 8;
 
     private DustService() {
     }
@@ -102,10 +99,13 @@ public final class DustService {
         double y = target.getY() + target.getBbHeight() * 0.5;
         double z = target.getZ();
         double w = Math.max(0.35, target.getBbWidth() * 0.6);
-        level.sendParticles(SAND_DUST, x, y, z, 28, w, 0.5, w, 0.04);
+        level.sendParticles(ParticleTypes.WHITE_ASH, x, y, z, 28, w, 0.5, w, 0.04);
         level.sendParticles(ParticleTypes.CLOUD, x, y, z, 16, w * 0.8, 0.35, w * 0.8, 0.02);
-        level.sendParticles(ParticleTypes.CRIT, x, y, z, 10, w * 0.6, 0.3, w * 0.6, 0.01);
-        level.playSound(null, target.blockPosition(), SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.0f, 0.7f);
+        level.sendParticles(SrFx.CHARGE_DUST, x, y, z, 12, w * 0.7, 0.35, w * 0.7, 0);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, x, y, z, 10, w * 0.6, 0.3, w * 0.6, 0.04);
+        spawnGroundRing(level, x, target.getY() + 0.08, z, Math.max(0.4, target.getBbWidth() * 0.7));
+        level.playSound(null, target.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.45f, 0.8f);
+        level.playSound(null, target.blockPosition(), SoundEvents.REDSTONE_TORCH_BURNOUT, SoundSource.PLAYERS, 0.5f, 1.4f);
         level.playSound(null, target.blockPosition(), SoundEvents.PHANTOM_FLAP, SoundSource.PLAYERS, 0.35f, 0.5f);
     }
 
@@ -134,9 +134,12 @@ public final class DustService {
 
         ServerLevel level = player.serverLevel();
         level.sendParticles(ParticleTypes.CLOUD, at.x, at.y + 1.0, at.z, 24, 1.4, 0.6, 1.4, 0.02);
-        level.sendParticles(SAND_DUST, at.x, at.y + 1.0, at.z, 40, 1.8, 0.7, 1.8, 0.05);
-        level.playSound(null, focus.blockPosition(), SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.0f, 0.7f);
-        level.playSound(null, focus.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.35f, 0.6f);
+        level.sendParticles(ParticleTypes.WHITE_ASH, at.x, at.y + 1.0, at.z, 28, 1.8, 0.7, 1.8, 0.04);
+        level.sendParticles(SrFx.CHARGE_DUST, at.x, at.y + 1.0, at.z, 16, 1.5, 0.5, 1.5, 0);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, at.x, at.y + 1.0, at.z, 8, 1.2, 0.4, 1.2, 0.04);
+        spawnGroundRing(level, at.x, at.y + 0.08, at.z, SrConfig.COMMON.dust.zoneRadius.get() * 0.45);
+        level.playSound(null, focus.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.4f, 0.65f);
+        level.playSound(null, focus.blockPosition(), SoundEvents.REDSTONE_TORCH_BURNOUT, SoundSource.PLAYERS, 0.45f, 1.2f);
         ActionBars.show(player, Component.translatable("ui.static_resonance.dust_zone_placed"));
         return true;
     }
@@ -194,8 +197,17 @@ public final class DustService {
                 living.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, BLIND_REFRESH_TICKS, 0, false, true, true));
             }
         }
-        level.sendParticles(SAND_DUST, zone.x, zone.y + 1.0, zone.z, 10, 1.6, 0.5, 1.6, 0.02);
+        level.sendParticles(ParticleTypes.WHITE_ASH, zone.x, zone.y + 1.0, zone.z, 8, 1.6, 0.5, 1.6, 0.02);
         level.sendParticles(ParticleTypes.CLOUD, zone.x, zone.y + 1.1, zone.z, 6, 1.4, 0.4, 1.4, 0.01);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, zone.x, zone.y + 1.0, zone.z, 2, 1.2, 0.35, 1.2, 0.02);
+    }
+
+    private static void spawnGroundRing(ServerLevel level, double cx, double cy, double cz, double radius) {
+        double r = Math.max(0.35, radius);
+        for (int i = 0; i < GROUND_RING_POINTS; i++) {
+            double a = (Math.PI * 2.0 * i) / GROUND_RING_POINTS;
+            level.sendParticles(SrFx.CHARGE_DUST, cx + Math.cos(a) * r, cy, cz + Math.sin(a) * r, 1, 0, 0, 0, 0);
+        }
     }
 
     private static final class DustZone {

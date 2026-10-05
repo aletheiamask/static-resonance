@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.0.28
+
+Fixes only. Same skills, costs, and keys. Client and server must both update (network protocol 11).
+
+**EN**
+
+- `visuals.seeThroughWalls` is now decided by the server and sent with each scan; a player's own config file no longer turns it on.
+- Cloth Config "reset" for see-through walls goes back to the real default (off).
+- Mode-switch action bar is translated (Thai included).
+- Emergency cage chat shows the configured `faraday.durationTicks` instead of a fixed "30.0s", and is translated.
+- Stale descriptions for Dust style and Scan radius match current behaviour.
+
+**TH**
+
+- `visuals.seeThroughWalls` เซิร์ฟเป็นคนตัดสินและส่งมากับการสแกน ไฟล์คอนฟิกในเครื่องผู้เล่นเปิดเองไม่ได้แล้ว
+- ปุ่ม reset ใน Cloth Config ของสแกนทะลุกำแพงกลับเป็นค่าเริ่มต้นจริง (ปิด)
+- ข้อความตอนเปลี่ยนโหมดแปลแล้ว มีภาษาไทย
+- ข้อความกรงฉุกเฉินแสดงเวลาตาม `faraday.durationTicks` แทน "30.0s" ตายตัว และแปลแล้ว
+- คำอธิบาย Dust style กับ Scan radius ที่ค้างจากเวอร์ชันเก่าตรงกับของจริงแล้ว
+
+Requires Minecraft 1.20.1, Forge 47.x, Origins (Forge) 1.10+.
+
+## 1.0.27
+
+White static VFX pass. Same skills, costs, and keys. Faraday Cage FX unchanged.
+
+**EN**
+
+- Dust Curtain is charged white grit (ash, cloud, sparks, ground ring) instead of sand.
+- Magnetic Lock corona and Control Field edge are ice-white sparks, not witch purple.
+- Static Scan keeps green / white / red lock corners and adds a white sonar ring on open.
+- Circuit F now discharges into the looked-at block; held pieces tick sparse sparks.
+- Mode-switch particles and radial titles share the ice-white charge palette.
+- Origin icon is the character portrait (replaces lightning rod).
+
+**TH**
+
+- ม่านฝุ่นเป็นผงประจุขาว (เถ้า / เมฆ / สปาร์ก / วงที่พื้น) เลิกทราย
+- ล็อกแม่เหล็กกับขอบสนามเป็นสปาร์กขาวน้ำแข็ง ไม่ใช่ม่วงแม่มด
+- สแกนยังใช้มุมเขียว / ขาว / แดง และมีวงโซนาร์ขาวตอนเปิด
+- วงจร F ปล่อยประจุเข้าบล็อกที่เล็ง ชิ้นที่ค้างมีสปาร์กเบาๆ
+- พาติเคิลสลับโหมดกับชื่อในวงล้อใช้จานสีประจุขาวน้ำแข็ง
+- ไอคอนออริจิ้นเป็นรูปตัวละคร แทนสายล่อฟ้า
+
+Requires Minecraft 1.20.1, Forge 47.x, Origins (Forge) 1.10+.
+
 ## 1.0.26
 
 Public drop after 1.0.18. Same skills, costs, and keys. More stable on the client (scan + HUD).

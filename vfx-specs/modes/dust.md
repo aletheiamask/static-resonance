@@ -4,14 +4,14 @@
 |-------|-------|
 | Index | 0 |
 | Theme | Charged particulate / static-held grit |
-| HUD colors | Brown `#8D6E63` + Yellow `#C4A35A` |
-| Feel | Soft volume, choking, terrain interaction |
+| HUD colors | Ice white `#E8F4FF` |
+| Feel | Soft volume, choking, white static cling |
 
 ## Identity
 
 - Soft billowing density, not fireballs
-- Particles should feel **heavy then float** (charged dust)
-- Avoid pure white smoke
+- Particles should feel **heavy then float** (charged white grit)
+- White ash + cool-white dust + sparse sparks — not sand, not grey campfire smoke
 
 ## Future 3D
 

@@ -30,9 +30,10 @@
 
 ## VFX on locked target
 
-1. **Head ring** — purple dust circle above head
-2. **Spiral suck** — 3 layers downward
-3. **Ground seal** — end_rod + reverse_portal at feet
+1. **Head ring** — cool-white charge dust circle above head
+2. **Body sting** — electric spark column + flash
+3. **Corona motes** — end_rod around the ring
+4. **Field edge** — white dust fence + spark ticks
 
 ## Implementation
 

@@ -1,8 +1,8 @@
 package com.staticresonance.client;
 
 import com.staticresonance.StaticResonanceMod;
-import com.staticresonance.config.SrConfig;
 import com.staticresonance.mode.ScanOutlineService;
+import com.staticresonance.mode.SrFx;
 import com.staticresonance.network.PacketLimits;
 import com.staticresonance.network.ScanOutlinePacket;
 import net.minecraft.client.Camera;
@@ -45,6 +45,7 @@ public final class ScanOutlineClient {
     private static final int SPARK_INTERVAL = 4;
     private static final int FLECK_CAP = 24;
     private static final int REVEAL_TICKS = 20;
+    private static final int REVEAL_RING_POINTS = 10;
     private static final float[] COLOR_PASSIVE = {0.28f, 0.92f, 0.38f};
     private static final float[] COLOR_PLAYER = {1.00f, 1.00f, 1.00f};
     private static final float[] COLOR_HOSTILE = {1.00f, 0.22f, 0.20f};
@@ -66,12 +67,15 @@ public final class ScanOutlineClient {
     private static int markGeneration;
     private static int walkedGeneration = -1;
     private static Vec3 scanOrigin;
+    /** Last value the server sent; the client's own config file is ignored. */
+    private static boolean serverSeeThrough;
 
     private ScanOutlineClient() {
     }
 
     public static void handle(ScanOutlinePacket packet) {
         List<UUID> ids = packet.entityIds();
+        serverSeeThrough = packet.seeThroughWalls();
         if (packet.clearAll() && ids.isEmpty()) {
             clearScanMarks();
             return;
@@ -116,8 +120,13 @@ public final class ScanOutlineClient {
         } else if ((clientTick & 1) == 0 || CACHED.isEmpty()) {
             rebuildCache(level);
         }
-        if (!CACHED.isEmpty() && clientTick % SPARK_INTERVAL == 0) {
-            spawnLocalFlecks(level, mc.player);
+        if (clientTick % SPARK_INTERVAL == 0) {
+            if (revealTicks < REVEAL_TICKS && scanOrigin != null && !MARKED.isEmpty()) {
+                spawnRevealRing(level);
+            }
+            if (!CACHED.isEmpty()) {
+                spawnLocalFlecks(level, mc.player);
+            }
         }
     }
 
@@ -168,7 +177,7 @@ public final class ScanOutlineClient {
             float pulse = 0.72f + 0.23f * Mth.sin((clientTick + partialTick) * 0.18f);
             FRAME.add(new ScanBoxRenderer.Box(box, rgb[0], rgb[1], rgb[2], 0.95f * pulse));
         }
-        boolean seeThrough = SrConfig.COMMON.visuals.seeThroughWalls.get() || ShaderPacks.inUse();
+        boolean seeThrough = serverSeeThrough || ShaderPacks.inUse();
         ScanBoxRenderer.draw(camera, WORLD_PROJECTION, WORLD_VIEW, seeThrough, FRAME);
     }
 
@@ -279,6 +288,27 @@ public final class ScanOutlineClient {
         }
         CACHED.clear();
         CACHED.addAll(next);
+    }
+
+    private static void spawnRevealRing(ClientLevel level) {
+        if (scanOrigin == null) {
+            return;
+        }
+        float r = revealRadius();
+        if (r < 0.5f) {
+            return;
+        }
+        double y = scanOrigin.y + 1.0;
+        double spin = clientTick * 0.08;
+        for (int i = 0; i < REVEAL_RING_POINTS; i++) {
+            double a = spin + (Math.PI * 2.0 * i) / REVEAL_RING_POINTS;
+            double x = scanOrigin.x + Math.cos(a) * r;
+            double z = scanOrigin.z + Math.sin(a) * r;
+            level.addParticle(ParticleTypes.ELECTRIC_SPARK, x, y, z, 0, 0.01, 0);
+            if ((i & 1) == 0) {
+                level.addParticle(SrFx.CHARGE_DUST, x, y + 0.05, z, 0, 0, 0);
+            }
+        }
     }
 
     private static DustParticleOptions dustFor(Entity entity) {

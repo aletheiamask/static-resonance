@@ -4,14 +4,14 @@
 |-------|-------|
 | Index | 1 |
 | Theme | Electromagnetic perception |
-| HUD colors | Cyan `#4FC3F7` / Blue `#1565C0` |
+| HUD colors | Ice white `#E8F4FF` |
 | Feel | Clean scan pulse, readable highlights |
 
 ## Identity
 
-- Thin rings / sonar waves
+- Thin white sonar rings
 - Short lifetime, high readability
-- Ally-friendly palette (no aggressive red)
+- Lock-corner RGB stays tactical (green safe / white player / red hostile) — not costume color
 
 ## Future 3D
 

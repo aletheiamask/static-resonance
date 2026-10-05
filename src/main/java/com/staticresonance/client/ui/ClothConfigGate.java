@@ -2,6 +2,7 @@ package com.staticresonance.client.ui;
 
 import com.staticresonance.StaticResonanceMod;
 import com.staticresonance.config.SrConfig;
+import com.staticresonance.logic.GameplayDefaults;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
@@ -80,7 +81,7 @@ public final class ClothConfigGate {
 
         ConfigCategory visuals = builder.getOrCreateCategory(cat("visuals"));
         visuals.addEntry(e.startBooleanToggle(label("visuals.seeThroughWalls"), c.visuals.seeThroughWalls.get())
-                .setDefaultValue(true)
+                .setDefaultValue(GameplayDefaults.SEE_THROUGH_WALLS)
                 .setSaveConsumer(c.visuals.seeThroughWalls::set)
                 .build());
 
