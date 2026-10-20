@@ -138,3 +138,30 @@ publishing {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
+
+// ลงลายเซ็น jar ด้วยใบรับรองเดียวกับ MTC Craft (Tacoparoni Studio)
+// keystore อยู่นอก repo ที่ ~/.mtccraft/tacoparoni.jks (หรือ $MTC_RELEASE_HOME) รหัสผ่านจาก MTC_KEYSTORE_PASS
+// ไม่มี keystore หรือรหัสผ่าน jar ยังสร้างได้ตามปกติ แค่ไม่มีลายเซ็น · ห้าม commit keystore
+def releaseHome = System.getenv('MTC_RELEASE_HOME') ? new File(System.getenv('MTC_RELEASE_HOME'))
+        : new File(System.getProperty('user.home'), '.mtccraft')
+def keystoreFile = new File(releaseHome, 'tacoparoni.jks')
+
+var signJar = tasks.register('signJar') {
+    group = 'build'
+    description = 'Signs the reobfuscated jar with the Tacoparoni Studio certificate.'
+    dependsOn 'reobfJar'
+    doLast {
+        // ForgeGradle 6 เขียนผล reobf ทับไฟล์ jar เดิม จึงลงลายเซ็นที่ไฟล์ของ task jar
+        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        def pass = System.getenv('MTC_KEYSTORE_PASS')
+        if (!keystoreFile.exists() || !pass) {
+            logger.warn("signJar: no keystore at ${keystoreFile} or MTC_KEYSTORE_PASS not set, jar left unsigned")
+            return
+        }
+        ant.signjar(jar: jarFile, alias: 'tacoparoni', keystore: keystoreFile, storepass: pass,
+                sigalg: 'SHA256withRSA', digestalg: 'SHA-256')
+        logger.lifecycle("signJar: signed ${jarFile.name}")
+    }
+}
+
+tasks.named('build') { finalizedBy signJar }
