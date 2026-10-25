@@ -29,6 +29,4 @@ src/generated/
 
 # Local inspect / decompiled Apoli stubs / play dumps
 io/
-tmp-celine-inspect/
-nokrit-watch-summary.txt
 _lr.png

@@ -39,7 +39,7 @@ XML: `build/test-results/test/TEST-*.xml`
 | `AllyListClient` `LoggingOut` clears | pass |
 | Radial HUD: one full-screen scrim, no nested `sw/8` / `sw/5` fills | pass |
 
-## Nokrit install (this session)
+## Test instance install (this session)
 
 | Check | Result |
 |-------|--------|
