@@ -1,146 +1,105 @@
-# Static Resonance
+<div align="center">
 
-Minecraft **1.20.1 Forge** content mod that adds the **Static Resonance** origin for **Origins (Forge)**.
+<img src="docs/images/icon.png" width="160" alt="Pixel portrait of Pipothai's character: pink hair, violet eyes, a small Pikachu hair clip">
 
-**Creator:** Pipothai  
-**GitHub:** https://github.com/aletheiamask/static-resonance  
-**YouTube:** https://www.youtube.com/@Tuna_Sandwich_TOT  
+# ⚡ Static Resonance
 
-**License: All Rights Reserved.** You may download it, play it, and put it in modpacks. You may not reupload it as your own, rebrand it, claim authorship, sell it, or ship a modified copy as if it were yours. See `LICENSE`.
+**The Origin of Pipothai's own character, shared so anyone who likes it can use it.**<br>
+Five electrostatic modes for Origins on Minecraft 1.20.1 Forge.
 
-Gameplay is a **hybrid**: Origins/Apoli for mode gates and resource bars, **Java services** for spend/apply so charge cannot desync. The skill wheel and outlines are Java.
+[![Modrinth](https://img.shields.io/modrinth/dt/static-resonance?style=for-the-badge&logo=modrinth&label=Modrinth&color=8fe3cf&labelColor=5b3a29)](https://modrinth.com/mod/static-resonance)
+[![Minecraft 1.20.1](https://img.shields.io/badge/Minecraft-1.20.1-ff8fb1?style=for-the-badge&labelColor=5b3a29)](https://modrinth.com/mod/static-resonance/versions)
+[![Forge 47.x](https://img.shields.io/badge/Forge-47.x-b8a4ff?style=for-the-badge&labelColor=5b3a29)](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html)
+[![Requires Origins](https://img.shields.io/badge/requires-Origins%20(Forge)-ffe58f?style=for-the-badge&labelColor=5b3a29)](https://modrinth.com/mod/origins-forge)
 
-เอกสารอยู่ที่ [`docs/README.md`](docs/README.md) — เริ่มจากแคตตาล็อกสกิล ถ้าขัดกับเอกสารออกแบบให้เชื่อแคตตาล็อก  
-ก่อนขึ้นเลขเวอร์ชันใช้ [`docs/PLAYTEST.md`](docs/PLAYTEST.md)  
-สเปกวงล้อและ VFX อยู่ที่ `vfx-specs/`
+[Download on Modrinth](https://modrinth.com/mod/static-resonance) · [Wiki](https://tarcoparoni.ropmuang.workers.dev/static-resonance/wiki) · [Discord](https://discord.gg/mtQm4trmuv) · [YouTube](https://www.youtube.com/@Tuna_Sandwich_TOT)
 
----
+</div>
 
-## Requirements
+One origin with five modes, a Charge bar from 0 to 100, free wall climbing and a few passives. I made it for fun as my own character's power, and it's here for anyone who wants to play it.
 
-| Component | Version |
-|-----------|---------|
-| Minecraft | 1.20.1 |
-| Forge | 47.x |
-| Origins (Forge) | 1.10.x (e.g. CurseForge project `origins-forge` 474438) |
-| Java (build) | 17 |
+## 🍬 How to play
 
----
+**Hold R** opens the skill wheel (it only selects, never casts). **F** casts the current mode.
 
-## Controls
+| Mode | Skill | Charge | What it does |
+|---|---|---:|---|
+| Dust | Dust Curtain | 5 / 10 | Burst on the target you look at, or a smoke zone |
+| Sense | Static Scan | 8 | One pulse that marks nearby things with private corners only you see (green / white / red) |
+| Control | Magnetic Lock | 15 on hit / 40 field | Lock a target; a miss costs nothing. The field grows to 30 blocks while you stand still |
+| Aegis | Faraday Cage | 50 | 30 s cage, 120 s cooldown. The emergency raise is free |
+| Circuit | Circuit Flip | 8 | Flips the redstone piece you look at for 8 s |
 
-| Action | Key | Behavior |
-|--------|-----|----------|
-| **Mode radial** | **Hold R** | Open 5-wedge wheel → aim → release to select |
-| **Skill options** | **LMB** on Faraday / Control / Dust / Sense | Open sub-panel (emergency, style, filters) |
-| **Toggle option** | **LMB** in sub | Green = ON · black = OFF · center = back |
-| **Cycle mode** | **Tap R** | Dust → Sense → Control → Aegis → Circuit → Dust |
-| **Use skill** | **F** | Cast the skill of the current mode |
-| **Wall climb** | (always on) | Slide on a wall to climb. No charge. |
+In the wheel, left-click Dust, Sense, Control or Aegis to open its options (styles, scan filters, emergency raise). Tapping R cycles modes without the wheel.
 
-| Mode | Skill | Cost | Notes |
-|------|-------|-----:|-------|
-| Dust | Dust Curtain | 5 / 10 | Burst look-hit / smoke zone from the sub-panel |
-| Sense | Static Scan | 8 | F start/stop; one 32-block pulse (source default; world toml may differ); no per-tick drain |
-| Control | Magnetic Lock | 15* / 40‡ | Target miss spends nothing |
-| Aegis | Faraday Cage | 50 | Emergency can raise for free if a hit would drop below the floor |
-| Circuit | Circuit Flip | 8 | F flips the looked-at redstone piece for 8s. No world scan. |
+### Passives
 
-\* Target lock spends Charge **only if** a living target is hit.  
-‡ Field: **40** immediately; expands to **30** blocks; lasts **~60s** while standing still; move = collapse; F again = stop.
+- **Static Footing:** knockback resistance.
+- **Charged Stability:** extra knockback resistance at Charge 50 or more.
+- **Wall climb:** always on and free.
+- **Faraday Protocol:** if a hit would drop you below 2 HP, the cage can raise for free (toggle it in the Aegis options).
+- **Grounded:** water and rain leak Charge, and you take +25% damage while wet.
 
-**Charge** (0–100): Java regen while dry / drain when wet; motion harvest from nearby moving life (≤5 blocks default); wet = +25% damage taken. Numbers live in `config/static_resonance-common.toml`. With Cloth Config, Mods → Static Resonance → Config edits them in-game.
+Particles are white charge and lightning. Scan see-through is off by default and the server decides it (`visuals.seeThroughWalls`). This is not a cheat client.
 
-Hold-R radial UI: `vfx-specs/ui/radial_mode_menu.md`.
+## 🧁 Install
 
----
+1. Minecraft **1.20.1** with **Forge 47.x**.
+2. Install **[Origins (Forge)](https://modrinth.com/mod/origins-forge) 1.10+** on the client and the server.
+3. Drop `static_resonance-1.0.28.jar` into `mods/` on both sides. Client and server must run matching versions; 1.0.28 can't connect to 1.0.27 or older.
+4. Optional: [Cloth Config](https://modrinth.com/mod/cloth-config) lets you edit the numbers in game (Mods → Static Resonance → Config).
+5. Make a world and pick **Static Resonance** in the origin screen.
 
-## Build
+Release jars from 1.0.28 on are signed by Tacoparoni Studio. Check one with `jarsigner -verify static_resonance-1.0.28.jar`.
+
+## 🍭 Build from source
+
+Needs JDK 17.
 
 ```bat
-cd Desktop\static-resonance
 gradlew.bat build
-```
-
-Output jar: `build/libs/static_resonance-1.0.26.jar`
-
-Formula unit tests (no Minecraft boot):
-
-```bat
 gradlew.bat test
-```
-
-### Dev run
-
-```bat
 gradlew.bat runClient
 ```
 
-Origins-Forge is pulled via CurseMaven (`curse.maven:origins-forge-474438:5311982`). If resolution fails, download Origins-Forge for 1.20.1 from CurseForge and drop it into `run/mods`.
+The jar lands in `build/libs/`. `test` runs the formula tests without booting Minecraft.
 
-### Compile-time Apoli API (`libs/`)
+Origins (Forge) comes from CurseMaven (`curse.maven:origins-forge-474438:5311982`). If that fails, put the Origins jar for 1.20.1 into `run/mods`. Apoli and Calio ship inside Origins as jar-in-jar, so `libs/` holds extracted copies for compiling only; see [`libs/README.md`](libs/README.md).
 
-Origins jars Apoli/Calio as jar-in-jar. For Java compile (`ModeService`) we use extracted jars under `libs/`:
-
-- `libs/apoli-forge-1.20.1-2.9.0.7.jar`
-- `libs/calio-forge-1.20.1-1.11.0.4.jar`
-
-Runtime still comes from Origins. After bumping the Origins file id, re-extract nested jars from the mapped Origins jar (`META-INF/jarjar/`) into `libs/` and align `build.gradle` `compileOnly files(...)`.
-
----
-
-## Install (play)
-
-1. Install Forge 1.20.1  
-2. Install **Origins (Forge)** for 1.20.1  
-3. Drop `static_resonance-*.jar` into `mods/`  
-4. Create world → choose **Static Resonance**  
-
----
-
-## Project layout
+Gameplay is a hybrid: Origins/Apoli handles mode gates and resource bars, and Java services spend Charge and apply effects so the bar can't desync. The wheel and the scan outlines are Java.
 
 ```
-static-resonance/
-  src/main/java/com/staticresonance/
-    mode/     spend/apply authority (Faraday, Control, Scan, Circuit, Climb)
-    logic/    pure formulas (tested)
-    client/   radial, outlines
-    network/  F-cast + mode/style packets
-  src/main/resources/data/static_resonance/
-    origins/  origin definition
-    powers/   resources, passives, weakness, leftover mode JSON
-    functions/  one-shot FX
-    tags/
-  docs/       catalog (source of truth), PLAYTEST, architecture
-  vfx-specs/  AI-readable 3D/UI designs (no runtime)
+src/main/java/com/staticresonance/
+  mode/      spend/apply (Dust, Faraday, Control, Scan, Circuit, Climb)
+  logic/     pure formulas with unit tests
+  client/    skill wheel, outlines
+  network/   cast, mode and option packets
+src/main/resources/data/static_resonance/
+  origins/   origin definition
+  powers/    resources, passives, weakness
+  functions/ one-shot effects
+docs/        skill catalog (source of truth), playtest, architecture
+vfx-specs/   wheel and effect designs
 ```
 
-Combat functions do not use `@p` for damage credit.
+Start with [`docs/README.md`](docs/README.md). If a design doc disagrees with the skill catalog, the catalog wins.
 
----
+## 🍫 ภาษาไทย
 
-## Playtest
+นี่คือพลังออริจินของตัวละครโคลเอ้ นำมาแจกให้คนที่ชอบได้ใช้กัน
 
-Use [`docs/PLAYTEST.md`](docs/PLAYTEST.md) before bumping the version. Short version:
+- Origin ไฟฟ้าสถิต 5 โหมด ประจุ 0–100 ปีนกำแพงได้
+- กดค้าง R เลือกโหมด · F ใช้สกิล
+- ต้องมี Origins (Forge) 1.10 ขึ้นไป ทั้งไคลเอนต์และเซิร์ฟ
+- พาสซีฟ: ต้าน knockback · ประจุตั้งแต่ 50 ต้านเพิ่ม · ปีนกำแพงฟรี · Faraday ฉุกเฉินเมื่อเลือดจะต่ำกว่า 2 · น้ำ/ฝนทำให้ประจุรั่ว
 
-- [ ] Origin chooser + F casts the selected mode  
-- [ ] Charge regenerates dry, drains wet  
-- [ ] Radial LMB does not spend charge  
-- [ ] Faraday farm feel + emergency without a cage up  
-- [ ] Scan in a dense area then unload a marked mob  
-- [ ] Circuit toggle, walk away, wait for expiry  
-- [ ] Wall climb on a dedicated server (no rubber-band)
+## 📜 License
 
----
+© 2026 Pipothai. All Rights Reserved. See [`LICENSE`](LICENSE).
 
-## Phase 2 (not implemented)
+You can download it, play it and put it in modpacks (keep the name and credit Pipothai). Please don't reupload it as your own, rebrand it or sell it. The source is public so people can read it and learn from it; it doesn't come with a license to publish modified copies.
 
-- 3D meshes / beams / trails (`vfx-specs/abilities/*`)  
-- Full upgrade tree (Dust Storm, Chain Shock, …)  
-- Hostile vs PvP target tags cleanup  
-- More origins under the same shared systems
+ลิขสิทธิ์สงวน เล่นและใส่แพ็กได้ ห้ามรีอัปโหลดเป็นของตัวเอง
 
----
-
-© 2026 Pipothai. All Rights Reserved.
+AI helped with the code and page text under Pipothai's direction. No AI images.<br>
+Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.
