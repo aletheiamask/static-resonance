@@ -101,5 +101,4 @@ You can download it, play it and put it in modpacks (keep the name and credit Pi
 
 ลิขสิทธิ์สงวน เล่นและใส่แพ็กได้ ห้ามรีอัปโหลดเป็นของตัวเอง
 
-AI helped with the code and page text under Pipothai's direction. No AI images.<br>
 Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.
