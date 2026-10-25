@@ -12,7 +12,7 @@ Record: case ID, pass/fail, notes (shader on/off, dimension, radius).
 
 | ID | Setup | Steps | Expected |
 |----|--------|--------|----------|
-| S0-1 | Nokrit 1.0.7 | Check `mods/` for this jar only | One Static Resonance jar, version 1.0.26 |
+| S0-1 | Test instance | Check `mods/` for this jar only | One Static Resonance jar, version 1.0.26 |
 | S0-2 | Same | Note Complementary / Oculus on or off for the session | Written in your notes; later cases say which |
 
 ---
