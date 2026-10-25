@@ -38,8 +38,6 @@ Scan see-through is **off** by default (`visuals.seeThroughWalls`). Not a cheat 
 
 © 2026 Pipothai. **All Rights Reserved.** Download, play, and put in modpacks (keep the name, credit Pipothai). Do not reupload as your own.
 
-AI-assisted code and page text under Pipothai’s direction. No AI images.
-
 ## ภาษาไทย
 
 นี่คือพลังออริจินของตัวละคร **Pipothai** นำมาแจกให้คนที่สนใจนำไปใช้ได้
