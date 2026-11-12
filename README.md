@@ -12,7 +12,7 @@ Five electrostatic modes for Origins on Minecraft 1.20.1 Forge.
 [![Forge 47.x](https://img.shields.io/badge/Forge-47.x-b8a4ff?style=for-the-badge&labelColor=5b3a29)](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html)
 [![Requires Origins](https://img.shields.io/badge/requires-Origins%20(Forge)-ffe58f?style=for-the-badge&labelColor=5b3a29)](https://modrinth.com/mod/origins-forge)
 
-[Download on Modrinth](https://modrinth.com/mod/static-resonance) · [Wiki](https://tarcoparoni.ropmuang.workers.dev/static-resonance/wiki) · [Discord](https://discord.gg/mtQm4trmuv) · [YouTube](https://www.youtube.com/@Tuna_Sandwich_TOT)
+[Download on Modrinth](https://modrinth.com/mod/static-resonance) · [Wiki](https://tarcoparoni.ropmuang.workers.dev/static-resonance/wiki) · [Discord](https://discord.gg/DtxdT3sQfR) · [YouTube](https://www.youtube.com/@Tuna_Sandwich_TOT)
 
 </div>
 
